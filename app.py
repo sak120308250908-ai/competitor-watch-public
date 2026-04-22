@@ -281,6 +281,7 @@ if "selected_halls" not in st.session_state:
 st.sidebar.title("📡 競合店ウォッチ")
 plan = st.sidebar.selectbox("表示モード", ["basic", "a", "b"], index=1)
 selected_halls = st.sidebar.multiselect("比較店舗", hall_candidates, key="selected_halls")
+self_store = st.sidebar.selectbox("自店", selected_halls, index=0) if selected_halls else None
 
 st.sidebar.markdown("#### 店舗セット")
 set_name = st.sidebar.text_input("セット名", placeholder="例: 愛知キャッスル")
@@ -332,6 +333,8 @@ if share_url.get("halls"):
 if not selected_halls:
     st.warning("比較する店舗を1つ以上選択してください。")
     st.stop()
+
+rival_halls = [hall for hall in selected_halls if hall != self_store]
 
 slot_df = fetch_slot_data(selected_halls)
 interview_df = interview_pool[interview_pool["hall_name"].isin(selected_halls)].copy()
@@ -848,6 +851,110 @@ if not multi_machine_rank_df.empty:
         hide_index=True,
     )
 
+    if self_store and rival_halls:
+        self_machine_df = multi_machine_df[multi_machine_df["店名"] == self_store].copy()
+        rival_machine_df = multi_machine_df[multi_machine_df["店名"].isin(rival_halls)].copy()
+
+        if not self_machine_df.empty and not rival_machine_df.empty:
+            rival_best_idx = rival_machine_df.groupby("機種名")["平均差枚数"].idxmax()
+            rival_best_df = rival_machine_df.loc[rival_best_idx].copy()
+            machine_gap_df = self_machine_df.merge(
+                rival_best_df,
+                on="機種名",
+                how="inner",
+                suffixes=("_自店", "_競合"),
+            )
+
+            if not machine_gap_df.empty:
+                machine_gap_df["差枚ギャップ"] = machine_gap_df["平均差枚数_自店"] - machine_gap_df["平均差枚数_競合"]
+                machine_gap_df["回転数ギャップ"] = machine_gap_df["平均回転数_自店"] - machine_gap_df["平均回転数_競合"]
+
+                losing_view = (
+                    machine_gap_df[machine_gap_df["差枚ギャップ"] < 0]
+                    .sort_values("差枚ギャップ")
+                    .head(10)
+                    .loc[
+                        :,
+                        [
+                            "機種名",
+                            "平均差枚数_自店",
+                            "平均回転数_自店",
+                            "店名_競合",
+                            "平均差枚数_競合",
+                            "平均回転数_競合",
+                            "差枚ギャップ",
+                        ],
+                    ]
+                    .rename(
+                        columns={
+                            "平均差枚数_自店": "自店平均差枚数",
+                            "平均回転数_自店": "自店平均回転数",
+                            "店名_競合": "優勢競合店",
+                            "平均差枚数_競合": "競合平均差枚数",
+                            "平均回転数_競合": "競合平均回転数",
+                        }
+                    )
+                )
+
+                winning_view = (
+                    machine_gap_df[machine_gap_df["差枚ギャップ"] > 0]
+                    .sort_values("差枚ギャップ", ascending=False)
+                    .head(10)
+                    .loc[
+                        :,
+                        [
+                            "機種名",
+                            "平均差枚数_自店",
+                            "平均回転数_自店",
+                            "店名_競合",
+                            "平均差枚数_競合",
+                            "平均回転数_競合",
+                            "差枚ギャップ",
+                        ],
+                    ]
+                    .rename(
+                        columns={
+                            "平均差枚数_自店": "自店平均差枚数",
+                            "平均回転数_自店": "自店平均回転数",
+                            "店名_競合": "比較競合店",
+                            "平均差枚数_競合": "競合平均差枚数",
+                            "平均回転数_競合": "競合平均回転数",
+                        }
+                    )
+                )
+
+                for view_df in [losing_view, winning_view]:
+                    for target_col in ["自店平均差枚数", "競合平均差枚数", "差枚ギャップ"]:
+                        if target_col in view_df.columns:
+                            view_df[target_col] = format_signed_number(view_df[target_col])
+                    for target_col in ["自店平均回転数", "競合平均回転数"]:
+                        if target_col in view_df.columns:
+                            view_df[target_col] = format_plain_number(view_df[target_col])
+
+                gap_col1, gap_col2 = st.columns(2)
+                with gap_col1:
+                    st.markdown(f"#### {self_store} が劣勢の主力機種")
+                    st.caption("競合店のほうが平均差枚数で上回っている機種です。")
+                    if not losing_view.empty:
+                        st.dataframe(
+                            style_signed_columns(losing_view, ["自店平均差枚数", "競合平均差枚数", "差枚ギャップ"]),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    else:
+                        st.success("この条件では、自店が明確に劣勢の主力機種は見当たりません。")
+                with gap_col2:
+                    st.markdown(f"#### {self_store} が優勢の主力機種")
+                    st.caption("自店のほうが平均差枚数で上回っている機種です。")
+                    if not winning_view.empty:
+                        st.dataframe(
+                            style_signed_columns(winning_view, ["自店平均差枚数", "競合平均差枚数", "差枚ギャップ"]),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    else:
+                        st.info("この条件では、自店が明確に優勢の主力機種は見当たりません。")
+
     matrix_scope_label = "全日"
     if selected_machine_weekday:
         matrix_scope_label = selected_machine_weekday
@@ -855,7 +962,7 @@ if not multi_machine_rank_df.empty:
         matrix_scope_label = f"{selected_machine_day}日"
 
     st.markdown("#### 主力機種 × 店舗 比較マトリクス")
-    st.caption(f"{matrix_scope_label} の条件で、機種ごとに各店舗の差枚・回転数・勝率・台データ件数を横並びで比較します。")
+    st.caption(f"{matrix_scope_label} の条件で、機種ごとに各店舗の差枚・回転数・勝率・台データ件数を横並びで比較します。店舗数が多い場合は横にスクロールして確認できます。")
 
     matrix_source = multi_machine_df.copy()
     matrix_source["平均差枚数"] = format_signed_number(matrix_source["平均差枚数"])
@@ -869,13 +976,17 @@ if not multi_machine_rank_df.empty:
         .set_index(["機種名", "店名"])
         .unstack("店名")
         .swaplevel(0, 1, axis=1)
-        .sort_index(axis=1, level=0)
     )
     matrix_view.columns.names = ["店舗", "指標"]
+    column_store_order = [hall for hall in [self_store] + rival_halls if hall]
+    ordered_columns = []
+    for hall in column_store_order:
+        ordered_columns.extend([column for column in matrix_view.columns if column[0] == hall])
+    matrix_view = matrix_view.loc[:, ordered_columns]
 
     csv_matrix_view = flatten_multiindex_columns(matrix_view.reset_index())
     download_csv_button(csv_matrix_view, "主力機種 × 店舗 比較マトリクスをCSV出力", "multi_machine_matrix")
-    st.dataframe(matrix_view, use_container_width=True)
+    st.dataframe(matrix_view, use_container_width=False, height=420)
 
 if selected_machine and not machine_summary_df.empty:
     machine_summary_view = machine_summary_df.copy()
