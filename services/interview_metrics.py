@@ -3,6 +3,12 @@ from __future__ import annotations
 import pandas as pd
 
 
+def _safe_numeric_series(df: pd.DataFrame, column_name: str) -> pd.Series:
+    if column_name not in df.columns:
+        return pd.Series(0, index=df.index, dtype="float64")
+    return pd.to_numeric(df[column_name], errors="coerce").fillna(0)
+
+
 def build_interview_day_summary(slot_df: pd.DataFrame, interview_df: pd.DataFrame) -> pd.DataFrame:
     if slot_df.empty or interview_df.empty:
         return pd.DataFrame()
@@ -77,9 +83,9 @@ def build_media_reliability_summary(interview_day_df: pd.DataFrame) -> pd.DataFr
     if df.empty:
         return pd.DataFrame()
 
-    df["avg_diff"] = pd.to_numeric(df.get("avg_diff"), errors="coerce").fillna(0)
-    df["avg_games"] = pd.to_numeric(df.get("avg_games"), errors="coerce").fillna(0)
-    df["win_rate"] = pd.to_numeric(df.get("win_rate"), errors="coerce").fillna(0)
+    df["avg_diff"] = _safe_numeric_series(df, "avg_diff")
+    df["avg_games"] = _safe_numeric_series(df, "avg_games")
+    df["win_rate"] = _safe_numeric_series(df, "win_rate")
     df["is_positive_day"] = (df["avg_diff"] > 0).astype(int)
     df["reliability_score"] = (df["avg_diff"] / 100.0) + (df["win_rate"] * 100.0) + (df["avg_games"] / 1000.0)
 
@@ -107,9 +113,9 @@ def build_coverage_replay_summary(interview_day_df: pd.DataFrame) -> pd.DataFram
     if df.empty:
         return pd.DataFrame()
 
-    df["avg_diff"] = pd.to_numeric(df.get("avg_diff"), errors="coerce").fillna(0)
-    df["avg_games"] = pd.to_numeric(df.get("avg_games"), errors="coerce").fillna(0)
-    df["win_rate"] = pd.to_numeric(df.get("win_rate"), errors="coerce").fillna(0)
+    df["avg_diff"] = _safe_numeric_series(df, "avg_diff")
+    df["avg_games"] = _safe_numeric_series(df, "avg_games")
+    df["win_rate"] = _safe_numeric_series(df, "win_rate")
     df["is_positive_day"] = (df["avg_diff"] > 0).astype(int)
 
     return (
