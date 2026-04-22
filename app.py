@@ -505,7 +505,7 @@ fig = px.bar(
     x="店舗",
     y="avg_diff",
     color="avg_diff",
-    title="平均差枚数の比較",
+    title=f"平均差枚数の比較 ({analysis_scope_label})",
     color_continuous_scale="RdYlGn",
 )
 st.plotly_chart(fig, use_container_width=True)
@@ -542,13 +542,20 @@ with group_col2:
 
 weekday_col, interview_col = st.columns(2)
 with weekday_col:
-    st.markdown("### 曜日傾向")
+    st.markdown(f"### 曜日傾向 ({analysis_scope_label})")
     if not weekday_df.empty:
-        fig_week = px.line(weekday_df, x="Weekday", y="avg_diff", color="店舗", markers=True)
+        fig_week = px.line(
+            weekday_df,
+            x="Weekday",
+            y="avg_diff",
+            color="店舗",
+            markers=True,
+            title=f"曜日別の平均差枚数 ({analysis_scope_label})",
+        )
         st.plotly_chart(fig_week, use_container_width=True)
 
 with interview_col:
-    st.markdown("### 取材日サマリー")
+    st.markdown(f"### 取材日サマリー ({analysis_scope_label})")
     if not interview_day_df.empty:
         summary_cols = [c for c in ["event_date", "hall_name", "media_name", "coverage_name", "avg_diff", "avg_games", "win_rate"] if c in interview_day_df.columns]
         view_df = interview_day_df[summary_cols].copy()
@@ -576,7 +583,7 @@ with interview_col:
         st.info("この条件では取材日データがありません。")
 
 if plan in {"a", "b"}:
-    st.markdown("### 新台ウォッチ")
+    st.markdown(f"### 新台ウォッチ ({analysis_scope_label})")
     if not new_machine_overlap_df.empty:
         st.write(generate_new_machine_comment(new_machine_df))
         st.write(generate_new_machine_overlap_comment(new_machine_overlap_df))
@@ -722,7 +729,7 @@ if plan in {"a", "b"}:
     else:
         st.info("この条件では新台データがありません。")
 
-    st.markdown("### 取材ウォッチ")
+    st.markdown(f"### 取材ウォッチ ({analysis_scope_label})")
     detail_cols = [
         c
         for c in [
@@ -855,7 +862,7 @@ if plan in {"a", "b"}:
                 hide_index=True,
             )
 
-st.markdown("### 機種ウォッチ")
+st.markdown(f"### 機種ウォッチ ({machine_scope_label})")
 st.caption("主力機種を1つ選ぶと、店舗横比較と日別推移を見られます。")
 if self_store:
     st.info(f"機種比較の基準: {machine_scope_label} の「{self_store}」を自店基準として、選択中の比較店舗と横並びで見ています。")
@@ -1025,7 +1032,7 @@ if selected_machine and not machine_summary_df.empty:
             y="平均差枚数",
             color="店名",
             markers=True,
-            title=f"{selected_machine} の日別推移",
+            title=f"{selected_machine} の日別推移 ({machine_scope_label})",
         )
         st.plotly_chart(fig_machine, use_container_width=True)
 
@@ -1041,7 +1048,7 @@ if selected_machine and not machine_summary_df.empty:
         )
 
     if not machine_weekday_df.empty:
-        st.markdown("#### 機種 × 曜日傾向")
+        st.markdown(f"#### 機種 × 曜日傾向 ({machine_scope_label})")
         weekday_chart_df = machine_weekday_df.copy()
         fig_machine_weekday = px.line(
             weekday_chart_df,
@@ -1049,7 +1056,7 @@ if selected_machine and not machine_summary_df.empty:
             y="平均差枚数",
             color="店名",
             markers=True,
-            title=f"{selected_machine} の曜日別傾向",
+            title=f"{selected_machine} の曜日別傾向 ({machine_scope_label})",
         )
         st.plotly_chart(fig_machine_weekday, use_container_width=True)
 
