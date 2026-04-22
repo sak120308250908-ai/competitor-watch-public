@@ -99,6 +99,16 @@ DEFAULT_HALLS = [
     "プレイランドキャッスル記念橋南店",
 ]
 
+WEEKDAY_MAP = {
+    "Monday": "月曜日",
+    "Tuesday": "火曜日",
+    "Wednesday": "水曜日",
+    "Thursday": "木曜日",
+    "Friday": "金曜日",
+    "Saturday": "土曜日",
+    "Sunday": "日曜日",
+}
+
 
 @st.cache_resource
 def init_connection():
@@ -176,6 +186,22 @@ def format_signed_number(series: pd.Series) -> pd.Series:
 def format_plain_number(series: pd.Series) -> pd.Series:
     numeric = pd.to_numeric(series, errors="coerce").fillna(0).round().astype(int)
     return numeric.map(lambda value: f"{value:,}")
+
+
+def format_count_number(series: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce").fillna(0).round().astype(int)
+    return numeric.map(lambda value: f"{value}")
+
+
+def flatten_multiindex_columns(df: pd.DataFrame) -> pd.DataFrame:
+    flattened = df.copy()
+    flattened.columns = [
+        " / ".join([str(part) for part in column if str(part)])
+        if isinstance(column, tuple)
+        else str(column)
+        for column in flattened.columns
+    ]
+    return flattened
 
 
 def signed_text_color(value) -> str:
@@ -331,6 +357,25 @@ if slot_df.empty:
     st.warning("対象店舗の slot_data が見つかりませんでした。")
     st.stop()
 
+weekday_candidates = [WEEKDAY_MAP.get(day, day) for day in sorted(slot_df["Weekday"].dropna().unique().tolist())]
+day_candidates = sorted(slot_df["Day"].dropna().astype(int).unique().tolist())
+machine_slice_mode = st.sidebar.selectbox("機種比較の切り口", ["全日", "曜日", "日付番号"])
+selected_machine_weekday = None
+selected_machine_day = None
+
+if machine_slice_mode == "曜日" and weekday_candidates:
+    selected_machine_weekday = st.sidebar.selectbox("曜日を選択", weekday_candidates)
+elif machine_slice_mode == "日付番号" and day_candidates:
+    selected_machine_day = st.sidebar.selectbox("日付番号を選択", day_candidates, format_func=lambda value: f"{value}日")
+
+machine_slot_df = slot_df.copy()
+if selected_machine_weekday:
+    reverse_weekday_map = {jp: en for en, jp in WEEKDAY_MAP.items()}
+    target_weekday = reverse_weekday_map.get(selected_machine_weekday, selected_machine_weekday)
+    machine_slot_df = machine_slot_df[machine_slot_df["Weekday"] == target_weekday]
+elif selected_machine_day is not None:
+    machine_slot_df = machine_slot_df[machine_slot_df["Day"] == int(selected_machine_day)]
+
 store_summary = build_store_competitor_summary(slot_df)
 score_df = build_competitor_score(store_summary)
 weekday_df = build_weekday_strength_summary(slot_df)
@@ -360,10 +405,10 @@ default_machine = machine_candidates[0] if machine_candidates else None
 selected_machine = st.sidebar.selectbox("機種ウォッチ", [""] + machine_candidates, index=1 if default_machine else 0)
 default_core_machines = machine_candidates[:5]
 selected_core_machines = st.sidebar.multiselect("主力機種まとめ比較", machine_candidates, default=default_core_machines)
-machine_summary_df = build_machine_watch_summary(slot_df, selected_machine) if selected_machine else pd.DataFrame()
-machine_daily_df = build_machine_watch_daily(slot_df, selected_machine) if selected_machine else pd.DataFrame()
-machine_weekday_df = build_machine_watch_weekday(slot_df, selected_machine) if selected_machine else pd.DataFrame()
-multi_machine_df = build_multi_machine_watch_summary(slot_df, selected_core_machines)
+machine_summary_df = build_machine_watch_summary(machine_slot_df, selected_machine) if selected_machine else pd.DataFrame()
+machine_daily_df = build_machine_watch_daily(machine_slot_df, selected_machine) if selected_machine else pd.DataFrame()
+machine_weekday_df = build_machine_watch_weekday(machine_slot_df, selected_machine) if selected_machine else pd.DataFrame()
+multi_machine_df = build_multi_machine_watch_summary(machine_slot_df, selected_core_machines)
 multi_machine_rank_df = build_multi_machine_store_rankings(multi_machine_df)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -803,29 +848,34 @@ if not multi_machine_rank_df.empty:
         hide_index=True,
     )
 
-    diff_pivot_df = multi_machine_df.pivot_table(index="機種名", columns="店名", values="平均差枚数", aggfunc="mean")
-    if not diff_pivot_df.empty:
-        diff_pivot_view = diff_pivot_df.reset_index().copy()
-        for column in diff_pivot_view.columns[1:]:
-            diff_pivot_view[column] = format_signed_number(diff_pivot_view[column])
-        st.markdown("#### 主力機種 × 店舗 差枚マトリクス")
-        st.dataframe(
-            style_signed_columns(diff_pivot_view, list(diff_pivot_view.columns[1:])),
-            use_container_width=True,
-            hide_index=True,
-        )
+    matrix_scope_label = "全日"
+    if selected_machine_weekday:
+        matrix_scope_label = selected_machine_weekday
+    elif selected_machine_day is not None:
+        matrix_scope_label = f"{selected_machine_day}日"
 
-    games_pivot_df = multi_machine_df.pivot_table(index="機種名", columns="店名", values="平均回転数", aggfunc="mean")
-    if not games_pivot_df.empty:
-        games_pivot_view = games_pivot_df.reset_index().copy()
-        for column in games_pivot_view.columns[1:]:
-            games_pivot_view[column] = format_plain_number(games_pivot_view[column])
-        st.markdown("#### 主力機種 × 店舗 平均回転数マトリクス")
-        st.dataframe(
-            games_pivot_view,
-            use_container_width=True,
-            hide_index=True,
-        )
+    st.markdown("#### 主力機種 × 店舗 比較マトリクス")
+    st.caption(f"{matrix_scope_label} の条件で、機種ごとに各店舗の差枚・回転数・勝率・台データ件数を横並びで比較します。")
+
+    matrix_source = multi_machine_df.copy()
+    matrix_source["平均差枚数"] = format_signed_number(matrix_source["平均差枚数"])
+    matrix_source["平均回転数"] = format_plain_number(matrix_source["平均回転数"])
+    matrix_source["勝率"] = format_percent(matrix_source["勝率"])
+    matrix_source["台データ件数"] = format_count_number(matrix_source["台データ件数"])
+    matrix_source = matrix_source[["機種名", "店名", "平均差枚数", "平均回転数", "勝率", "台データ件数"]]
+
+    matrix_view = (
+        matrix_source
+        .set_index(["機種名", "店名"])
+        .unstack("店名")
+        .swaplevel(0, 1, axis=1)
+        .sort_index(axis=1, level=0)
+    )
+    matrix_view.columns.names = ["店舗", "指標"]
+
+    csv_matrix_view = flatten_multiindex_columns(matrix_view.reset_index())
+    download_csv_button(csv_matrix_view, "主力機種 × 店舗 比較マトリクスをCSV出力", "multi_machine_matrix")
+    st.dataframe(matrix_view, use_container_width=True)
 
 if selected_machine and not machine_summary_df.empty:
     machine_summary_view = machine_summary_df.copy()
