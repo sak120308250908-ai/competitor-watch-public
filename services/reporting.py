@@ -62,3 +62,65 @@ def generate_metric_guide() -> list[tuple[str, str]]:
         ("特日重複", "新台初日が特日に重なっていたかどうかです。店の強化日との重なりを見る材料です。"),
         ("導入規模", "1台、2-4台、5-9台、10-19台、20台以上に分けた導入台数帯です。店の力の入れ方を見ます。"),
     ]
+
+
+def generate_weekly_report(
+    score_df: pd.DataFrame,
+    media_reliability_df: pd.DataFrame,
+    coverage_replay_df: pd.DataFrame,
+    new_machine_overlap_df: pd.DataFrame,
+    special_overlap_df: pd.DataFrame,
+) -> str:
+    lines: list[str] = []
+
+    if not score_df.empty:
+        top_store = score_df.iloc[0]
+        lines.append(
+            f"店舗比較では {top_store['店舗']} が先行しています。"
+            f" 平均差枚は {int(round(top_store['avg_diff'])):+,} 枚、勝率は {top_store['win_rate'] * 100:.1f}% です。"
+        )
+
+    if not media_reliability_df.empty:
+        top_media = media_reliability_df.iloc[0]
+        lines.append(
+            f"媒体信頼度では {top_media['media_name']} が上位で、"
+            f" 平均差枚 {int(round(top_media['avg_diff'])):+,} 枚、プラス率 {top_media['positive_rate'] * 100:.1f}% でした。"
+        )
+
+    if not coverage_replay_df.empty:
+        top_coverage = coverage_replay_df.iloc[0]
+        lines.append(
+            f"取材名別再現率では {top_coverage['coverage_name']} が目立ち、"
+            f" 再現率 {top_coverage['positive_rate'] * 100:.1f}%、平均差枚 {int(round(top_coverage['avg_diff'])):+,} 枚です。"
+        )
+
+    if not new_machine_overlap_df.empty:
+        top_machine = (
+            new_machine_overlap_df.assign(
+                平均差枚数=pd.to_numeric(new_machine_overlap_df["平均差枚数"], errors="coerce").fillna(0)
+            )
+            .sort_values("平均差枚数", ascending=False)
+            .iloc[0]
+        )
+        lines.append(
+            f"新台では {top_machine['機種名']} が最も強く、"
+            f" {top_machine['hall_name']} で平均差枚 {int(round(top_machine['平均差枚数'])):+,} 枚でした。"
+        )
+
+    if not special_overlap_df.empty:
+        top_pattern = (
+            special_overlap_df.assign(
+                平均差枚数=pd.to_numeric(special_overlap_df["平均差枚数"], errors="coerce").fillna(0)
+            )
+            .sort_values("平均差枚数", ascending=False)
+            .iloc[0]
+        )
+        lines.append(
+            f"重なり分析では {top_pattern['重複パターン']} が最も強く、"
+            f" 平均差枚 {int(round(top_pattern['平均差枚数'])):+,} 枚、平均勝率 {top_pattern['平均勝率']:.1f}% でした。"
+        )
+
+    if not lines:
+        return "この条件では週次レポートを作るためのデータがまだ不足しています。"
+
+    return "\n\n".join(lines)

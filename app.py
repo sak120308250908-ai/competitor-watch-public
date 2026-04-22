@@ -25,6 +25,7 @@ from services.reporting import (
     generate_metric_guide,
     generate_new_machine_comment,
     generate_new_machine_overlap_comment,
+    generate_weekly_report,
     generate_weekly_competitor_comment,
 )
 from services.store_normalizer import get_store_query_names, normalize_store_series
@@ -281,6 +282,24 @@ col4.metric("期間", f"{start_date} - {end_date}" if isinstance(date_range, tup
 st.markdown("### 今週の要点")
 st.write(generate_weekly_competitor_comment(score_df))
 st.write(generate_interview_comment(interview_df))
+
+weekly_report_text = generate_weekly_report(
+    score_df=score_df,
+    media_reliability_df=media_reliability_df,
+    coverage_replay_df=coverage_replay_df,
+    new_machine_overlap_df=new_machine_overlap_df,
+    special_overlap_df=special_overlap_df,
+)
+
+with st.expander("週次レポート文"):
+    st.text_area("共有用の要約文", weekly_report_text, height=220)
+    st.download_button(
+        label="週次レポートをTXT出力",
+        data=weekly_report_text.encode("utf-8"),
+        file_name=f"weekly_report_{pd.Timestamp.now().strftime('%Y%m%d')}.txt",
+        mime="text/plain",
+        use_container_width=True,
+    )
 
 with st.expander("指標の見方"):
     for title, description in generate_metric_guide():
