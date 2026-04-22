@@ -91,6 +91,16 @@ def format_percent(series: pd.Series) -> pd.Series:
     return (series.fillna(0) * 100).round(1).astype(str) + "%"
 
 
+def format_signed_number(series: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce").fillna(0).round().astype(int)
+    return numeric.map(lambda value: f"{value:+,}")
+
+
+def format_plain_number(series: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce").fillna(0).round().astype(int)
+    return numeric.map(lambda value: f"{value:,}")
+
+
 interview_pool = fetch_interview_pool()
 hall_candidates = sorted(interview_pool["hall_name"].dropna().unique().tolist()) if not interview_pool.empty else DEFAULT_HALLS
 default_halls = [hall for hall in DEFAULT_HALLS if hall in hall_candidates] or hall_candidates[:3]
@@ -188,9 +198,9 @@ display_score_df = score_df.rename(
 if "勝率" in display_score_df.columns:
     display_score_df["勝率"] = format_percent(display_score_df["勝率"])
 if "平均差枚数" in display_score_df.columns:
-    display_score_df["平均差枚数"] = display_score_df["平均差枚数"].round().astype(int)
+    display_score_df["平均差枚数"] = format_signed_number(display_score_df["平均差枚数"])
 if "平均回転数" in display_score_df.columns:
-    display_score_df["平均回転数"] = display_score_df["平均回転数"].round().astype(int)
+    display_score_df["平均回転数"] = format_plain_number(display_score_df["平均回転数"])
 if "競合スコア" in display_score_df.columns:
     display_score_df["競合スコア"] = display_score_df["競合スコア"].round(1)
 st.dataframe(display_score_df, use_container_width=True, hide_index=True)
@@ -220,9 +230,9 @@ with interview_col:
         if "win_rate" in view_df.columns:
             view_df["win_rate"] = format_percent(view_df["win_rate"])
         if "avg_diff" in view_df.columns:
-            view_df["avg_diff"] = pd.to_numeric(view_df["avg_diff"], errors="coerce").round().fillna(0).astype(int)
+            view_df["avg_diff"] = format_signed_number(view_df["avg_diff"])
         if "avg_games" in view_df.columns:
-            view_df["avg_games"] = pd.to_numeric(view_df["avg_games"], errors="coerce").round().fillna(0).astype(int)
+            view_df["avg_games"] = format_plain_number(view_df["avg_games"])
         view_df = view_df.rename(
             columns={
                 "event_date": "日付",
@@ -259,7 +269,7 @@ if plan in {"a", "b"}:
             .reset_index()
         )
         overlap_stats["取材重複"] = overlap_stats["取材重複"].map({True: "あり", False: "なし"})
-        overlap_stats["平均差枚数"] = overlap_stats["平均差枚数"].round().astype(int)
+        overlap_stats["平均差枚数"] = format_signed_number(overlap_stats["平均差枚数"])
         overlap_stats["平均勝率"] = overlap_stats["平均勝率"].round(1).astype(str) + "%"
 
         top_overlap_df = (
@@ -284,6 +294,7 @@ if plan in {"a", "b"}:
                         "coverage_name": "取材名",
                     }
                 )
+                top_overlap_view["平均差枚数"] = format_signed_number(top_overlap_view["平均差枚数"])
                 top_overlap_view["勝率"] = top_overlap_view["勝率"].fillna(0).round(1).astype(str) + "%"
                 st.markdown("#### 取材重複の注目新台")
                 st.dataframe(top_overlap_view, use_container_width=True, hide_index=True)
@@ -311,12 +322,18 @@ if plan in {"a", "b"}:
                 "coverage_name": "取材名",
             }
         )
+        nm_view["平均差枚数"] = format_signed_number(nm_view["平均差枚数"])
+        nm_view["平均回転数"] = format_plain_number(nm_view["平均回転数"])
         nm_view["勝率"] = nm_view["勝率"].fillna(0).round(1).astype(str) + "%"
         nm_view["取材重複"] = nm_view["取材重複"].map({True: "あり", False: "なし"})
         st.dataframe(nm_view.sort_values("導入/初稼働日", ascending=False), use_container_width=True, hide_index=True)
 
         if not tier_summary_df.empty:
             tier_view = tier_summary_df.copy()
+            if "平均差枚数" in tier_view.columns:
+                tier_view["平均差枚数"] = format_signed_number(tier_view["平均差枚数"])
+            if "平均回転数" in tier_view.columns:
+                tier_view["平均回転数"] = format_plain_number(tier_view["平均回転数"])
             tier_view["勝率"] = tier_view["勝率"].fillna(0).round(1).astype(str) + "%"
             st.markdown("#### 導入台数別サマリー")
             st.dataframe(tier_view, use_container_width=True, hide_index=True)
@@ -354,9 +371,12 @@ if plan in {"a", "b"}:
             "machine_name": "機種名",
         }
     )
-    for col in ["総差枚", "台平均差枚", "回転数"]:
-        if col in detail_df.columns:
-            detail_df[col] = pd.to_numeric(detail_df[col], errors="coerce").round()
+    if "総差枚" in detail_df.columns:
+        detail_df["総差枚"] = format_signed_number(detail_df["総差枚"])
+    if "台平均差枚" in detail_df.columns:
+        detail_df["台平均差枚"] = format_signed_number(detail_df["台平均差枚"])
+    if "回転数" in detail_df.columns:
+        detail_df["回転数"] = format_plain_number(detail_df["回転数"])
     st.dataframe(detail_df.sort_values("日付", ascending=False), use_container_width=True, hide_index=True)
 
     sub1, sub2 = st.columns(2)
@@ -370,9 +390,10 @@ if plan in {"a", "b"}:
                     "avg_diff_per_unit": "平均台差枚",
                 }
             ).copy()
-            for col in ["平均総差枚", "平均台差枚"]:
-                if col in media_view.columns:
-                    media_view[col] = pd.to_numeric(media_view[col], errors="coerce").round()
+            if "平均総差枚" in media_view.columns:
+                media_view["平均総差枚"] = format_signed_number(media_view["平均総差枚"])
+            if "平均台差枚" in media_view.columns:
+                media_view["平均台差枚"] = format_signed_number(media_view["平均台差枚"])
             st.markdown("#### 媒体別サマリー")
             st.dataframe(media_view, use_container_width=True, hide_index=True)
     with sub2:
@@ -385,7 +406,7 @@ if plan in {"a", "b"}:
                 }
             ).copy()
             if "平均総差枚" in coverage_view.columns:
-                coverage_view["平均総差枚"] = pd.to_numeric(coverage_view["平均総差枚"], errors="coerce").round()
+                coverage_view["平均総差枚"] = format_signed_number(coverage_view["平均総差枚"])
             st.markdown("#### 取材名別サマリー")
             st.dataframe(coverage_view, use_container_width=True, hide_index=True)
 
