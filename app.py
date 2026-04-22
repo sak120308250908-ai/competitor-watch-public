@@ -1,3 +1,4 @@
+import html
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -91,6 +92,61 @@ build_weekday_strength_summary = getattr(
 
 
 st.set_page_config(page_title="競合店ウォッチ", page_icon="📡", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    div[data-testid="stAppViewContainer"] .cw-sticky-bar {
+        position: sticky;
+        top: 0.5rem;
+        z-index: 999;
+        background: linear-gradient(135deg, #f7f8fb 0%, #eef3f8 100%);
+        border: 1px solid #d9e3f0;
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        margin: 0.25rem 0 1rem 0;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+    div[data-testid="stAppViewContainer"] .cw-sticky-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #355070;
+        margin-bottom: 0.45rem;
+        letter-spacing: 0.02em;
+    }
+    div[data-testid="stAppViewContainer"] .cw-sticky-grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr 1.2fr 1.4fr;
+        gap: 0.65rem;
+    }
+    div[data-testid="stAppViewContainer"] .cw-sticky-item {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid #e4ebf5;
+        border-radius: 10px;
+        padding: 0.55rem 0.7rem;
+        min-width: 0;
+    }
+    div[data-testid="stAppViewContainer"] .cw-sticky-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #60738a;
+        margin-bottom: 0.15rem;
+    }
+    div[data-testid="stAppViewContainer"] .cw-sticky-value {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #1f2937;
+        word-break: break-word;
+    }
+    @media (max-width: 980px) {
+        div[data-testid="stAppViewContainer"] .cw-sticky-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 DEFAULT_HALLS = [
@@ -392,6 +448,8 @@ if len(selected_halls) > 5:
 analysis_period_label = f"{start_date} - {end_date}"
 analyzed_days_count = slot_df["日付"].dt.date.nunique() if not slot_df.empty else 0
 analysis_scope_label = f"{analysis_period_label} の {analyzed_days_count}日分"
+sticky_comparison_label = comparison_halls_label or "未選択"
+sticky_machine_condition_label = machine_scope_label or "全日"
 
 store_summary = build_store_competitor_summary(slot_df)
 score_df = build_competitor_score(store_summary)
@@ -433,6 +491,31 @@ col1.metric("比較店舗数", f"{len(selected_halls)}店")
 col2.metric("取材レコード数", f"{len(interview_df):,}件")
 col3.metric("分析対象台データ", f"{len(slot_df):,}件")
 col4.metric("期間", f"{start_date} - {end_date}" if isinstance(date_range, tuple) else str(date_range))
+
+sticky_html = f"""
+<div class="cw-sticky-bar">
+  <div class="cw-sticky-title">現在の分析条件</div>
+  <div class="cw-sticky-grid">
+    <div class="cw-sticky-item">
+      <div class="cw-sticky-label">自店基準</div>
+      <div class="cw-sticky-value">{html.escape(self_store or "未選択")}</div>
+    </div>
+    <div class="cw-sticky-item">
+      <div class="cw-sticky-label">比較店舗</div>
+      <div class="cw-sticky-value">{html.escape(sticky_comparison_label)}</div>
+    </div>
+    <div class="cw-sticky-item">
+      <div class="cw-sticky-label">対象期間</div>
+      <div class="cw-sticky-value">{html.escape(analysis_scope_label)}</div>
+    </div>
+    <div class="cw-sticky-item">
+      <div class="cw-sticky-label">機種比較条件</div>
+      <div class="cw-sticky-value">{html.escape(sticky_machine_condition_label)}</div>
+    </div>
+  </div>
+</div>
+"""
+st.markdown(sticky_html, unsafe_allow_html=True)
 
 st.markdown("### 現在の分析条件")
 condition_col1, condition_col2, condition_col3 = st.columns([1, 2, 1.2])
