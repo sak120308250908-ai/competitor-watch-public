@@ -389,6 +389,10 @@ comparison_halls_label = " / ".join(selected_halls[:5])
 if len(selected_halls) > 5:
     comparison_halls_label += f" / 他{len(selected_halls) - 5}店"
 
+analysis_period_label = f"{start_date} - {end_date}"
+analyzed_days_count = slot_df["日付"].dt.date.nunique() if not slot_df.empty else 0
+analysis_scope_label = f"{analysis_period_label} の {analyzed_days_count}日分"
+
 store_summary = build_store_competitor_summary(slot_df)
 score_df = build_competitor_score(store_summary)
 weekday_df = build_weekday_strength_summary(slot_df)
@@ -475,6 +479,7 @@ with st.expander("指標の見方"):
         st.markdown(f"- **{title}**: {description}")
 
 st.markdown("### 店舗比較")
+st.caption(f"{analysis_scope_label} を対象に、選択中の比較店舗を横並びで比較しています。")
 display_score_df = score_df.rename(
     columns={
         "店舗": "店名",
@@ -506,7 +511,7 @@ fig = px.bar(
 st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("### 法人・エリア比較")
-st.caption("法人はホール名からのブランド推定、エリアは取材データの都道府県を使っています。")
+st.caption(f"{analysis_scope_label} を対象に集計しています。法人はホール名からのブランド推定、エリアは取材データの都道府県を使っています。")
 group_col1, group_col2 = st.columns(2)
 with group_col1:
     if not brand_summary_df.empty:
