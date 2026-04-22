@@ -7,6 +7,7 @@ from services.competitor_metrics import (
     build_machine_candidate_summary,
     build_machine_watch_daily,
     build_machine_watch_summary,
+    build_machine_watch_weekday,
     build_competitor_score,
     build_specialday_strength_summary,
     build_store_competitor_summary,
@@ -283,6 +284,7 @@ default_machine = machine_candidates[0] if machine_candidates else None
 selected_machine = st.sidebar.selectbox("機種ウォッチ", [""] + machine_candidates, index=1 if default_machine else 0)
 machine_summary_df = build_machine_watch_summary(slot_df, selected_machine) if selected_machine else pd.DataFrame()
 machine_daily_df = build_machine_watch_daily(slot_df, selected_machine) if selected_machine else pd.DataFrame()
+machine_weekday_df = build_machine_watch_weekday(slot_df, selected_machine) if selected_machine else pd.DataFrame()
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("比較店舗数", f"{len(selected_halls)}店")
@@ -696,6 +698,30 @@ if selected_machine and not machine_summary_df.empty:
         download_csv_button(machine_daily_view, "機種の日別推移をCSV出力", "machine_watch_daily")
         st.dataframe(
             style_signed_columns(machine_daily_view, ["平均差枚数"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    if not machine_weekday_df.empty:
+        st.markdown("#### 機種 × 曜日傾向")
+        weekday_chart_df = machine_weekday_df.copy()
+        fig_machine_weekday = px.line(
+            weekday_chart_df,
+            x="Weekday",
+            y="平均差枚数",
+            color="店名",
+            markers=True,
+            title=f"{selected_machine} の曜日別傾向",
+        )
+        st.plotly_chart(fig_machine_weekday, use_container_width=True)
+
+        machine_weekday_view = machine_weekday_df.copy()
+        machine_weekday_view["平均差枚数"] = format_signed_number(machine_weekday_view["平均差枚数"])
+        machine_weekday_view["平均回転数"] = format_plain_number(machine_weekday_view["平均回転数"])
+        machine_weekday_view["勝率"] = format_percent(machine_weekday_view["勝率"])
+        download_csv_button(machine_weekday_view, "機種の曜日傾向をCSV出力", "machine_watch_weekday")
+        st.dataframe(
+            style_signed_columns(machine_weekday_view, ["平均差枚数"]),
             use_container_width=True,
             hide_index=True,
         )

@@ -162,3 +162,34 @@ def build_machine_watch_daily(store_df: pd.DataFrame, machine_name: str) -> pd.D
         .rename(columns={hall_col: "店名"})
         .sort_values(["日付", "店名"], ascending=[False, True])
     )
+
+
+def build_machine_watch_weekday(store_df: pd.DataFrame, machine_name: str) -> pd.DataFrame:
+    if store_df.empty or not machine_name:
+        return pd.DataFrame()
+
+    target_key = _normalize_machine_name(machine_name)
+    df = store_df.copy()
+    df["機種名"] = df["機種名"].fillna("不明")
+    df["_machine_key"] = df["機種名"].apply(_normalize_machine_name)
+    df = df[df["_machine_key"] == target_key].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df["差枚"] = pd.to_numeric(df["差枚"], errors="coerce").fillna(0)
+    df["G数"] = pd.to_numeric(df["G数"], errors="coerce").fillna(0)
+    df["Win"] = (df["差枚"] > 0).astype(int)
+    if "Weekday" not in df.columns:
+        df["Weekday"] = pd.to_datetime(df["日付"]).dt.day_name()
+    hall_col = "hall_name" if "hall_name" in df.columns else "店舗"
+
+    return (
+        df.groupby([hall_col, "Weekday"])
+        .agg(
+            平均差枚数=("差枚", "mean"),
+            平均回転数=("G数", "mean"),
+            勝率=("Win", "mean"),
+        )
+        .reset_index()
+        .rename(columns={hall_col: "店名"})
+    )
