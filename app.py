@@ -1,6 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import time
 from supabase import create_client
 
 from services.competitor_metrics import (
@@ -59,6 +60,19 @@ def fetch_interview_pool() -> pd.DataFrame:
     return fetch_interview_events(supabase_client=supabase)
 
 
+def execute_with_retry(request_builder, retries: int = 3, base_sleep: float = 1.0):
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return request_builder.execute()
+        except Exception as error:
+            last_error = error
+            if attempt == retries - 1:
+                raise
+            time.sleep(base_sleep * (attempt + 1))
+    raise last_error
+
+
 @st.cache_data(ttl=3600, show_spinner="店舗データを取得中...")
 def fetch_slot_data(halls: list[str]) -> pd.DataFrame:
     rows = []
@@ -67,13 +81,13 @@ def fetch_slot_data(halls: list[str]) -> pd.DataFrame:
             offset = 0
             limit = 1000
             while True:
-                result = (
+                request = (
                     supabase.table("slot_data")
                     .select("*")
                     .eq("店舗", query_name)
                     .range(offset, offset + limit - 1)
-                    .execute()
                 )
+                result = execute_with_retry(request)
                 data = result.data or []
                 if not data:
                     break
