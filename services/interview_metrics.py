@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import pandas as pd
+
+
+def build_interview_day_summary(slot_df: pd.DataFrame, interview_df: pd.DataFrame) -> pd.DataFrame:
+    if slot_df.empty or interview_df.empty:
+        return pd.DataFrame()
+
+    base = slot_df.copy()
+    base["日付"] = pd.to_datetime(base["日付"]).dt.date
+    base["差枚"] = pd.to_numeric(base["差枚"], errors="coerce").fillna(0)
+    base["G数"] = pd.to_numeric(base["G数"], errors="coerce").fillna(0)
+    base["Win"] = (base["差枚"] > 0).astype(int)
+    hall_col = "hall_name" if "hall_name" in base.columns else "店舗"
+
+    day_summary = (
+        base.groupby([hall_col, "日付"])
+        .agg(
+            avg_diff=("差枚", "mean"),
+            avg_games=("G数", "mean"),
+            win_rate=("Win", "mean"),
+            records=("差枚", "count"),
+        )
+        .reset_index()
+        .rename(columns={hall_col: "hall_name", "日付": "event_date"})
+    )
+
+    interviews = interview_df.copy()
+    interviews["event_date"] = pd.to_datetime(interviews["event_date"]).dt.date
+
+    merged = interviews.merge(day_summary, on=["hall_name", "event_date"], how="left")
+    return merged.sort_values(["event_date", "hall_name"], ascending=[False, True])
+
+
+def build_media_summary(interview_df: pd.DataFrame) -> pd.DataFrame:
+    if interview_df.empty or "media_name" not in interview_df.columns:
+        return pd.DataFrame()
+
+    df = interview_df.copy()
+    df["total_diff"] = pd.to_numeric(df.get("total_diff"), errors="coerce")
+    df["avg_diff_per_unit"] = pd.to_numeric(df.get("avg_diff_per_unit"), errors="coerce")
+
+    return (
+        df.groupby("media_name")
+        .agg(
+            events=("media_name", "count"),
+            avg_total_diff=("total_diff", "mean"),
+            avg_diff_per_unit=("avg_diff_per_unit", "mean"),
+        )
+        .reset_index()
+        .sort_values("events", ascending=False)
+    )
+
+
+def build_coverage_summary(interview_df: pd.DataFrame) -> pd.DataFrame:
+    if interview_df.empty or "coverage_name" not in interview_df.columns:
+        return pd.DataFrame()
+
+    df = interview_df.copy()
+    df["total_diff"] = pd.to_numeric(df.get("total_diff"), errors="coerce")
+
+    return (
+        df.groupby("coverage_name")
+        .agg(events=("coverage_name", "count"), avg_total_diff=("total_diff", "mean"))
+        .reset_index()
+        .sort_values("events", ascending=False)
+    )
+
+
+def build_new_machine_interview_overlap(new_machine_df: pd.DataFrame, interview_df: pd.DataFrame) -> pd.DataFrame:
+    if new_machine_df.empty or interview_df.empty:
+        return pd.DataFrame()
+
+    left = new_machine_df.copy()
+    left["導入/初稼働日"] = pd.to_datetime(left["導入/初稼働日"]).dt.date
+
+    right = interview_df.copy()
+    right["event_date"] = pd.to_datetime(right["event_date"]).dt.date
+
+    merged = left.merge(
+        right[["hall_name", "event_date", "media_name", "coverage_name", "category_name"]],
+        left_on=["hall_name", "導入/初稼働日"],
+        right_on=["hall_name", "event_date"],
+        how="left",
+    )
+    merged["取材重複"] = merged["event_date"].notna()
+    return merged
