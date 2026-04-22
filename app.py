@@ -120,9 +120,28 @@ def style_signed_columns(df: pd.DataFrame, columns: list[str]):
     return df.style.map(signed_text_color, subset=target_columns)
 
 
+def get_default_halls(interview_pool: pd.DataFrame, fallback_halls: list[str]) -> list[str]:
+    if interview_pool.empty:
+        return fallback_halls[:3]
+
+    work = interview_pool.copy()
+    work["event_date"] = pd.to_datetime(work["event_date"])
+    recent_cutoff = work["event_date"].max() - pd.Timedelta(days=30)
+    recent = work[work["event_date"] >= recent_cutoff]
+    ranked = (
+        recent.groupby("hall_name")
+        .size()
+        .sort_values(ascending=False)
+        .index.tolist()
+    )
+    default_halls = [hall for hall in ranked if hall] or fallback_halls[:3]
+    return default_halls[:3]
+
+
 interview_pool = fetch_interview_pool()
 hall_candidates = sorted(interview_pool["hall_name"].dropna().unique().tolist()) if not interview_pool.empty else DEFAULT_HALLS
-default_halls = [hall for hall in DEFAULT_HALLS if hall in hall_candidates] or hall_candidates[:3]
+fallback_halls = [hall for hall in DEFAULT_HALLS if hall in hall_candidates] or hall_candidates[:3]
+default_halls = get_default_halls(interview_pool, fallback_halls)
 
 st.sidebar.title("📡 競合店ウォッチ")
 plan = st.sidebar.selectbox("表示モード", ["basic", "a", "b"], index=1)
@@ -135,9 +154,10 @@ if interview_pool.empty:
 interview_pool["event_date"] = pd.to_datetime(interview_pool["event_date"])
 min_date = interview_pool["event_date"].min().date()
 max_date = interview_pool["event_date"].max().date()
+default_start_date = max(min_date, max_date - pd.Timedelta(days=30))
 date_range = st.sidebar.date_input(
     "期間",
-    value=(min_date, max_date),
+    value=(default_start_date, max_date),
     min_value=min_date,
     max_value=max_date,
 )
@@ -153,6 +173,7 @@ selected_coverage = st.sidebar.multiselect(
 
 st.title("📡 競合店ウォッチ")
 st.caption("競合比較と取材分析、新台ウォッチをまとめた公開向けダッシュボードです。")
+st.info("まずは 1. 比較店舗 2. 期間 3. 指標の見方 を確認すると使いやすいです。初期表示は直近30日です。")
 
 if not selected_halls:
     st.warning("比較する店舗を1つ以上選択してください。")
