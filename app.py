@@ -138,14 +138,51 @@ def get_default_halls(interview_pool: pd.DataFrame, fallback_halls: list[str]) -
     return default_halls[:3]
 
 
+def get_query_halls(hall_candidates: list[str]) -> list[str]:
+    raw_value = st.query_params.get("halls", "")
+    if not raw_value:
+        return []
+    requested = [value.strip() for value in str(raw_value).split(",") if value.strip()]
+    return [hall for hall in requested if hall in hall_candidates]
+
+
+def sync_hall_query_params(selected_halls: list[str]) -> None:
+    serialized = ",".join(selected_halls)
+    if serialized:
+        st.query_params["halls"] = serialized
+    elif "halls" in st.query_params:
+        del st.query_params["halls"]
+
+
 interview_pool = fetch_interview_pool()
 hall_candidates = sorted(interview_pool["hall_name"].dropna().unique().tolist()) if not interview_pool.empty else DEFAULT_HALLS
 fallback_halls = [hall for hall in DEFAULT_HALLS if hall in hall_candidates] or hall_candidates[:3]
 default_halls = get_default_halls(interview_pool, fallback_halls)
+query_halls = get_query_halls(hall_candidates)
+
+if "saved_hall_sets" not in st.session_state:
+    st.session_state["saved_hall_sets"] = {}
+if "selected_halls" not in st.session_state:
+    st.session_state["selected_halls"] = query_halls or default_halls
 
 st.sidebar.title("📡 競合店ウォッチ")
 plan = st.sidebar.selectbox("表示モード", ["basic", "a", "b"], index=1)
-selected_halls = st.sidebar.multiselect("比較店舗", hall_candidates, default=default_halls)
+selected_halls = st.sidebar.multiselect("比較店舗", hall_candidates, key="selected_halls")
+
+st.sidebar.markdown("#### 店舗セット")
+set_name = st.sidebar.text_input("セット名", placeholder="例: 愛知キャッスル")
+save_set = st.sidebar.button("この店舗セットを保存")
+saved_set_names = list(st.session_state["saved_hall_sets"].keys())
+selected_set_name = st.sidebar.selectbox("保存済みセット", [""] + saved_set_names)
+load_set = st.sidebar.button("保存済みセットを読み込む")
+
+if save_set and set_name and selected_halls:
+    st.session_state["saved_hall_sets"][set_name] = selected_halls
+    st.sidebar.success(f"「{set_name}」を保存しました。")
+
+if load_set and selected_set_name:
+    st.session_state["selected_halls"] = st.session_state["saved_hall_sets"][selected_set_name]
+    st.rerun()
 
 if interview_pool.empty:
     st.warning("interview_events が空です。先に Notion 同期を実行してください。")
@@ -170,10 +207,14 @@ selected_coverage = st.sidebar.multiselect(
     "取材名フィルタ",
     sorted(interview_pool["coverage_name"].dropna().unique().tolist()),
 )
+sync_hall_query_params(selected_halls)
 
 st.title("📡 競合店ウォッチ")
 st.caption("競合比較と取材分析、新台ウォッチをまとめた公開向けダッシュボードです。")
 st.info("まずは 1. 比較店舗 2. 期間 3. 指標の見方 を確認すると使いやすいです。初期表示は直近30日です。")
+share_url = st.query_params.to_dict()
+if share_url.get("halls"):
+    st.caption(f"共有用URL: `?halls={share_url['halls']}`")
 
 if not selected_halls:
     st.warning("比較する店舗を1つ以上選択してください。")
