@@ -137,10 +137,48 @@ def build_new_machine_interview_overlap(new_machine_df: pd.DataFrame, interview_
     right["event_date"] = pd.to_datetime(right["event_date"]).dt.date
 
     merged = left.merge(
-        right[["hall_name", "event_date", "media_name", "coverage_name", "category_name"]],
+        right[
+            [
+                "hall_name",
+                "event_date",
+                "media_name",
+                "coverage_name",
+                "category_name",
+                "is_special_day",
+                "is_circle_day",
+            ]
+        ],
         left_on=["hall_name", "導入/初稼働日"],
         right_on=["hall_name", "event_date"],
         how="left",
     )
     merged["取材重複"] = merged["event_date"].notna()
+    merged["特日重複"] = merged["is_special_day"].fillna(False).astype(bool)
+    merged["○の日重複"] = merged["is_circle_day"].fillna(False).astype(bool)
+    merged["重複パターン"] = "通常日"
+    merged.loc[merged["取材重複"], "重複パターン"] = "取材重複"
+    merged.loc[merged["特日重複"], "重複パターン"] = "特日重複"
+    merged.loc[merged["取材重複"] & merged["特日重複"], "重複パターン"] = "取材×特日"
     return merged
+
+
+def build_special_overlap_summary(new_machine_overlap_df: pd.DataFrame) -> pd.DataFrame:
+    if new_machine_overlap_df.empty:
+        return pd.DataFrame()
+
+    df = new_machine_overlap_df.copy()
+    df["平均差枚数"] = pd.to_numeric(df["平均差枚数"], errors="coerce").fillna(0)
+    df["平均回転数"] = pd.to_numeric(df["平均回転数"], errors="coerce").fillna(0)
+    df["勝率"] = pd.to_numeric(df["勝率"], errors="coerce").fillna(0)
+
+    return (
+        df.groupby("重複パターン")
+        .agg(
+            機種数=("機種名", "count"),
+            平均差枚数=("平均差枚数", "mean"),
+            平均回転数=("平均回転数", "mean"),
+            平均勝率=("勝率", "mean"),
+        )
+        .reset_index()
+        .sort_values("平均差枚数", ascending=False)
+    )

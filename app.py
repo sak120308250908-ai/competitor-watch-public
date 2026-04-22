@@ -16,6 +16,7 @@ from services.interview_metrics import (
     build_media_reliability_summary,
     build_media_summary,
     build_new_machine_interview_overlap,
+    build_special_overlap_summary,
 )
 from services.interview_repository import fetch_interview_events
 from services.new_machine_competitor import build_store_new_machine_summary, build_tier_summary
@@ -255,6 +256,7 @@ media_reliability_df = build_media_reliability_summary(interview_day_df)
 coverage_replay_df = build_coverage_replay_summary(interview_day_df)
 new_machine_df = build_store_new_machine_summary(slot_df)
 new_machine_overlap_df = build_new_machine_interview_overlap(new_machine_df, interview_df)
+special_overlap_df = build_special_overlap_summary(new_machine_overlap_df)
 tier_summary_df = build_tier_summary(new_machine_df)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -425,6 +427,49 @@ if plan in {"a", "b"}:
             tier_view["勝率"] = tier_view["勝率"].fillna(0).round(1).astype(str) + "%"
             st.markdown("#### 導入台数別サマリー")
             st.dataframe(style_signed_columns(tier_view, ["平均差枚数"]), use_container_width=True, hide_index=True)
+
+        if not special_overlap_df.empty:
+            special_overlap_view = special_overlap_df.copy()
+            special_overlap_view["平均差枚数"] = format_signed_number(special_overlap_view["平均差枚数"])
+            special_overlap_view["平均回転数"] = format_plain_number(special_overlap_view["平均回転数"])
+            special_overlap_view["平均勝率"] = format_percent(special_overlap_view["平均勝率"] / 100.0)
+            st.markdown("#### 特日 × 取材 × 新台")
+            st.caption("新台初日が、通常日・取材日・特日・取材×特日に重なった時の差を見ます。")
+            st.dataframe(
+                style_signed_columns(special_overlap_view, ["平均差枚数"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        if not new_machine_overlap_df.empty:
+            combo_view = new_machine_overlap_df[
+                [
+                    "導入/初稼働日",
+                    "hall_name",
+                    "機種名",
+                    "台数",
+                    "平均差枚数",
+                    "勝率",
+                    "重複パターン",
+                    "media_name",
+                    "coverage_name",
+                ]
+            ].copy()
+            combo_view = combo_view.rename(
+                columns={
+                    "hall_name": "店名",
+                    "media_name": "媒体",
+                    "coverage_name": "取材名",
+                }
+            )
+            combo_view["平均差枚数"] = format_signed_number(combo_view["平均差枚数"])
+            combo_view["勝率"] = combo_view["勝率"].fillna(0).round(1).astype(str) + "%"
+            st.markdown("#### 重なり別の新台一覧")
+            st.dataframe(
+                style_signed_columns(combo_view.sort_values("導入/初稼働日", ascending=False), ["平均差枚数"]),
+                use_container_width=True,
+                hide_index=True,
+            )
     else:
         st.info("この条件では新台データがありません。")
 
