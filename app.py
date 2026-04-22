@@ -101,6 +101,22 @@ def format_plain_number(series: pd.Series) -> pd.Series:
     return numeric.map(lambda value: f"{value:,}")
 
 
+def signed_text_color(value) -> str:
+    text = str(value).strip()
+    if text.startswith("+"):
+        return "color: #128a43; font-weight: 600;"
+    if text.startswith("-"):
+        return "color: #c62828; font-weight: 600;"
+    return ""
+
+
+def style_signed_columns(df: pd.DataFrame, columns: list[str]):
+    target_columns = [column for column in columns if column in df.columns]
+    if not target_columns:
+        return df
+    return df.style.map(signed_text_color, subset=target_columns)
+
+
 interview_pool = fetch_interview_pool()
 hall_candidates = sorted(interview_pool["hall_name"].dropna().unique().tolist()) if not interview_pool.empty else DEFAULT_HALLS
 default_halls = [hall for hall in DEFAULT_HALLS if hall in hall_candidates] or hall_candidates[:3]
@@ -203,8 +219,7 @@ if "平均回転数" in display_score_df.columns:
     display_score_df["平均回転数"] = format_plain_number(display_score_df["平均回転数"])
 if "競合スコア" in display_score_df.columns:
     display_score_df["競合スコア"] = display_score_df["競合スコア"].round(1)
-st.dataframe(display_score_df, use_container_width=True, hide_index=True)
-
+st.dataframe(style_signed_columns(display_score_df, ["平均差枚数"]), use_container_width=True, hide_index=True)
 fig = px.bar(
     score_df,
     x="店舗",
@@ -244,7 +259,8 @@ with interview_col:
                 "win_rate": "勝率",
             }
         )
-        st.dataframe(view_df.sort_values("日付", ascending=False), use_container_width=True, hide_index=True)
+        view_df = view_df.sort_values("日付", ascending=False)
+        st.dataframe(style_signed_columns(view_df, ["平均差枚数"]), use_container_width=True, hide_index=True)
     else:
         st.info("この条件では取材日データがありません。")
 
@@ -282,7 +298,7 @@ if plan in {"a", "b"}:
         summary_col, top_col = st.columns([1, 2])
         with summary_col:
             st.markdown("#### 取材重複比較")
-            st.dataframe(overlap_stats, use_container_width=True, hide_index=True)
+            st.dataframe(style_signed_columns(overlap_stats, ["平均差枚数"]), use_container_width=True, hide_index=True)
         with top_col:
             if not top_overlap_df.empty:
                 top_overlap_view = top_overlap_df[
@@ -297,7 +313,7 @@ if plan in {"a", "b"}:
                 top_overlap_view["平均差枚数"] = format_signed_number(top_overlap_view["平均差枚数"])
                 top_overlap_view["勝率"] = top_overlap_view["勝率"].fillna(0).round(1).astype(str) + "%"
                 st.markdown("#### 取材重複の注目新台")
-                st.dataframe(top_overlap_view, use_container_width=True, hide_index=True)
+                st.dataframe(style_signed_columns(top_overlap_view, ["平均差枚数"]), use_container_width=True, hide_index=True)
 
         nm_view = new_machine_overlap_df[
             [
@@ -326,7 +342,8 @@ if plan in {"a", "b"}:
         nm_view["平均回転数"] = format_plain_number(nm_view["平均回転数"])
         nm_view["勝率"] = nm_view["勝率"].fillna(0).round(1).astype(str) + "%"
         nm_view["取材重複"] = nm_view["取材重複"].map({True: "あり", False: "なし"})
-        st.dataframe(nm_view.sort_values("導入/初稼働日", ascending=False), use_container_width=True, hide_index=True)
+        nm_view = nm_view.sort_values("導入/初稼働日", ascending=False)
+        st.dataframe(style_signed_columns(nm_view, ["平均差枚数"]), use_container_width=True, hide_index=True)
 
         if not tier_summary_df.empty:
             tier_view = tier_summary_df.copy()
@@ -336,7 +353,7 @@ if plan in {"a", "b"}:
                 tier_view["平均回転数"] = format_plain_number(tier_view["平均回転数"])
             tier_view["勝率"] = tier_view["勝率"].fillna(0).round(1).astype(str) + "%"
             st.markdown("#### 導入台数別サマリー")
-            st.dataframe(tier_view, use_container_width=True, hide_index=True)
+            st.dataframe(style_signed_columns(tier_view, ["平均差枚数"]), use_container_width=True, hide_index=True)
     else:
         st.info("この条件では新台データがありません。")
 
@@ -377,7 +394,8 @@ if plan in {"a", "b"}:
         detail_df["台平均差枚"] = format_signed_number(detail_df["台平均差枚"])
     if "回転数" in detail_df.columns:
         detail_df["回転数"] = format_plain_number(detail_df["回転数"])
-    st.dataframe(detail_df.sort_values("日付", ascending=False), use_container_width=True, hide_index=True)
+    detail_df = detail_df.sort_values("日付", ascending=False)
+    st.dataframe(style_signed_columns(detail_df, ["総差枚", "台平均差枚"]), use_container_width=True, hide_index=True)
 
     sub1, sub2 = st.columns(2)
     with sub1:
@@ -395,7 +413,7 @@ if plan in {"a", "b"}:
             if "平均台差枚" in media_view.columns:
                 media_view["平均台差枚"] = format_signed_number(media_view["平均台差枚"])
             st.markdown("#### 媒体別サマリー")
-            st.dataframe(media_view, use_container_width=True, hide_index=True)
+            st.dataframe(style_signed_columns(media_view, ["平均総差枚", "平均台差枚"]), use_container_width=True, hide_index=True)
     with sub2:
         if not coverage_df.empty:
             coverage_view = coverage_df.rename(
@@ -408,7 +426,7 @@ if plan in {"a", "b"}:
             if "平均総差枚" in coverage_view.columns:
                 coverage_view["平均総差枚"] = format_signed_number(coverage_view["平均総差枚"])
             st.markdown("#### 取材名別サマリー")
-            st.dataframe(coverage_view, use_container_width=True, hide_index=True)
+            st.dataframe(style_signed_columns(coverage_view, ["平均総差枚"]), use_container_width=True, hide_index=True)
 
 if plan == "b":
     st.markdown("### 特日傾向")
