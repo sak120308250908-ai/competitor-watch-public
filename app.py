@@ -21,6 +21,7 @@ from services.interview_metrics import (
 from services.interview_repository import fetch_interview_events
 from services.new_machine_competitor import build_store_new_machine_summary, build_tier_summary
 from services.reporting import (
+    generate_alerts,
     generate_interview_comment,
     generate_metric_guide,
     generate_new_machine_comment,
@@ -282,6 +283,18 @@ col4.metric("期間", f"{start_date} - {end_date}" if isinstance(date_range, tup
 st.markdown("### 今週の要点")
 st.write(generate_weekly_competitor_comment(score_df))
 st.write(generate_interview_comment(interview_df))
+alert_messages = generate_alerts(
+    score_df=score_df,
+    media_reliability_df=media_reliability_df,
+    coverage_replay_df=coverage_replay_df,
+    special_overlap_df=special_overlap_df,
+)
+
+if alert_messages:
+    st.markdown("### 注目アラート")
+    alert_cols = st.columns(len(alert_messages))
+    for col, message in zip(alert_cols, alert_messages):
+        col.info(message)
 
 weekly_report_text = generate_weekly_report(
     score_df=score_df,

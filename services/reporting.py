@@ -124,3 +124,44 @@ def generate_weekly_report(
         return "この条件では週次レポートを作るためのデータがまだ不足しています。"
 
     return "\n\n".join(lines)
+
+
+def generate_alerts(
+    score_df: pd.DataFrame,
+    media_reliability_df: pd.DataFrame,
+    coverage_replay_df: pd.DataFrame,
+    special_overlap_df: pd.DataFrame,
+) -> list[str]:
+    alerts: list[str] = []
+
+    if not score_df.empty:
+        top_store = score_df.iloc[0]
+        alerts.append(
+            f"{top_store['店舗']} が競合比較の最上位です。平均差枚 {int(round(top_store['avg_diff'])):+,} 枚、勝率 {top_store['win_rate'] * 100:.1f}% です。"
+        )
+
+    if not media_reliability_df.empty and not coverage_replay_df.empty:
+        top_media = media_reliability_df.iloc[0]
+        top_coverage = coverage_replay_df.iloc[0]
+        alerts.append(
+            f"取材系では {top_media['media_name']} の媒体信頼度と {top_coverage['coverage_name']} の再現率が目立っています。"
+        )
+    elif not media_reliability_df.empty:
+        top_media = media_reliability_df.iloc[0]
+        alerts.append(
+            f"取材系では {top_media['media_name']} の媒体信頼度が高く、プラス率 {top_media['positive_rate'] * 100:.1f}% です。"
+        )
+
+    if not special_overlap_df.empty:
+        top_pattern = (
+            special_overlap_df.assign(
+                平均差枚数=pd.to_numeric(special_overlap_df["平均差枚数"], errors="coerce").fillna(0)
+            )
+            .sort_values("平均差枚数", ascending=False)
+            .iloc[0]
+        )
+        alerts.append(
+            f"新台重なりでは {top_pattern['重複パターン']} が最も強く、平均差枚 {int(round(top_pattern['平均差枚数'])):+,} 枚でした。"
+        )
+
+    return alerts[:3]
