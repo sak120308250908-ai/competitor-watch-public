@@ -5,6 +5,8 @@ import time
 from supabase import create_client
 
 from services.competitor_metrics import (
+    build_area_summary,
+    build_brand_summary,
     build_machine_candidate_summary,
     build_machine_watch_daily,
     build_machine_watch_summary,
@@ -288,6 +290,15 @@ media_df = build_media_summary(interview_df)
 coverage_df = build_coverage_summary(interview_df)
 media_reliability_df = build_media_reliability_summary(interview_day_df)
 coverage_replay_df = build_coverage_replay_summary(interview_day_df)
+hall_area_map = (
+    interview_pool[["hall_name", "prefecture"]]
+    .dropna()
+    .drop_duplicates(subset=["hall_name"])
+    .set_index("hall_name")["prefecture"]
+    .to_dict()
+)
+brand_summary_df = build_brand_summary(slot_df)
+area_summary_df = build_area_summary(slot_df, hall_area_map)
 new_machine_df = build_store_new_machine_summary(slot_df)
 new_machine_overlap_df = build_new_machine_interview_overlap(new_machine_df, interview_df)
 special_overlap_df = build_special_overlap_summary(new_machine_overlap_df)
@@ -374,6 +385,36 @@ fig = px.bar(
     color_continuous_scale="RdYlGn",
 )
 st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("### 法人・エリア比較")
+st.caption("法人はホール名からのブランド推定、エリアは取材データの都道府県を使っています。")
+group_col1, group_col2 = st.columns(2)
+with group_col1:
+    if not brand_summary_df.empty:
+        brand_view = brand_summary_df.copy()
+        brand_view["平均差枚数"] = format_signed_number(brand_view["平均差枚数"])
+        brand_view["平均回転数"] = format_plain_number(brand_view["平均回転数"])
+        brand_view["勝率"] = format_percent(brand_view["勝率"])
+        st.markdown("#### 法人比較")
+        download_csv_button(brand_view, "法人比較をCSV出力", "brand_summary")
+        st.dataframe(
+            style_signed_columns(brand_view, ["平均差枚数"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+with group_col2:
+    if not area_summary_df.empty:
+        area_view = area_summary_df.copy()
+        area_view["平均差枚数"] = format_signed_number(area_view["平均差枚数"])
+        area_view["平均回転数"] = format_plain_number(area_view["平均回転数"])
+        area_view["勝率"] = format_percent(area_view["勝率"])
+        st.markdown("#### エリア比較")
+        download_csv_button(area_view, "エリア比較をCSV出力", "area_summary")
+        st.dataframe(
+            style_signed_columns(area_view, ["平均差枚数"]),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 weekday_col, interview_col = st.columns(2)
 with weekday_col:

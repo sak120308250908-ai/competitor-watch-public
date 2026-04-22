@@ -5,6 +5,36 @@ import unicodedata
 import pandas as pd
 
 
+BRAND_PATTERNS = [
+    ("プレイランドキャッスル", "プレイランドキャッスル"),
+    ("キャッスル", "キャッスル"),
+    ("MEGAスロットコンコルド", "コンコルド"),
+    ("MEGAコンコルド", "コンコルド"),
+    ("コンコルド", "コンコルド"),
+    ("マルハン", "マルハン"),
+    ("ラッキープラザ", "ラッキープラザ"),
+    ("ラッキー1番", "ラッキー1番"),
+    ("キング観光サウザンド", "キング観光"),
+    ("キング観光", "キング観光"),
+    ("キング666", "キング666"),
+    ("ホームラン", "ホームラン"),
+    ("ZENT", "ZENT"),
+    ("ウイング", "ウイング"),
+    ("ミカド", "ミカド"),
+    ("タイホー", "タイホー"),
+    ("KYORAKU", "KYORAKU"),
+    ("ZEAL", "ZEAL"),
+    ("フジコー", "フジコー"),
+    ("プレイランドサンワ", "プレイランドサンワ"),
+    ("プレイランド平和", "プレイランド平和"),
+    ("プレイランド第一平和", "プレイランド平和"),
+    ("ABC", "ABC"),
+    ("楽園", "楽園"),
+    ("がちゃぽん", "がちゃぽん"),
+    ("キクヤ", "キクヤ"),
+]
+
+
 def build_store_competitor_summary(store_df: pd.DataFrame) -> pd.DataFrame:
     if store_df.empty:
         return pd.DataFrame()
@@ -79,6 +109,14 @@ def build_competitor_score(summary_df: pd.DataFrame) -> pd.DataFrame:
 def _normalize_machine_name(name: str) -> str:
     text = unicodedata.normalize("NFKC", str(name))
     return " ".join(text.split()).strip()
+
+
+def infer_brand_name(hall_name: str) -> str:
+    normalized = unicodedata.normalize("NFKC", str(hall_name)).strip()
+    for prefix, brand in BRAND_PATTERNS:
+        if normalized.startswith(prefix):
+            return brand
+    return normalized.replace("店", "")[:12] or "不明"
 
 
 def build_machine_candidate_summary(store_df: pd.DataFrame) -> pd.DataFrame:
@@ -192,4 +230,54 @@ def build_machine_watch_weekday(store_df: pd.DataFrame, machine_name: str) -> pd
         )
         .reset_index()
         .rename(columns={hall_col: "店名"})
+    )
+
+
+def build_brand_summary(store_df: pd.DataFrame) -> pd.DataFrame:
+    if store_df.empty:
+        return pd.DataFrame()
+
+    df = store_df.copy()
+    df["差枚"] = pd.to_numeric(df["差枚"], errors="coerce").fillna(0)
+    df["G数"] = pd.to_numeric(df["G数"], errors="coerce").fillna(0)
+    df["Win"] = (df["差枚"] > 0).astype(int)
+    hall_col = "hall_name" if "hall_name" in df.columns else "店舗"
+    df["ブランド"] = df[hall_col].apply(infer_brand_name)
+
+    return (
+        df.groupby("ブランド")
+        .agg(
+            平均差枚数=("差枚", "mean"),
+            平均回転数=("G数", "mean"),
+            勝率=("Win", "mean"),
+            台データ件数=("差枚", "count"),
+            店舗数=(hall_col, "nunique"),
+        )
+        .reset_index()
+        .sort_values("平均差枚数", ascending=False)
+    )
+
+
+def build_area_summary(store_df: pd.DataFrame, hall_area_map: dict[str, str]) -> pd.DataFrame:
+    if store_df.empty or not hall_area_map:
+        return pd.DataFrame()
+
+    df = store_df.copy()
+    df["差枚"] = pd.to_numeric(df["差枚"], errors="coerce").fillna(0)
+    df["G数"] = pd.to_numeric(df["G数"], errors="coerce").fillna(0)
+    df["Win"] = (df["差枚"] > 0).astype(int)
+    hall_col = "hall_name" if "hall_name" in df.columns else "店舗"
+    df["エリア"] = df[hall_col].map(hall_area_map).fillna("不明")
+
+    return (
+        df.groupby("エリア")
+        .agg(
+            平均差枚数=("差枚", "mean"),
+            平均回転数=("G数", "mean"),
+            勝率=("Win", "mean"),
+            台データ件数=("差枚", "count"),
+            店舗数=(hall_col, "nunique"),
+        )
+        .reset_index()
+        .sort_values("平均差枚数", ascending=False)
     )
