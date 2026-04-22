@@ -4,6 +4,9 @@ import streamlit as st
 from supabase import create_client
 
 from services.competitor_metrics import (
+    build_machine_candidate_summary,
+    build_machine_watch_daily,
+    build_machine_watch_summary,
     build_competitor_score,
     build_specialday_strength_summary,
     build_store_competitor_summary,
@@ -264,6 +267,7 @@ store_summary = build_store_competitor_summary(slot_df)
 score_df = build_competitor_score(store_summary)
 weekday_df = build_weekday_strength_summary(slot_df)
 specialday_df = build_specialday_strength_summary(slot_df)
+machine_candidate_df = build_machine_candidate_summary(slot_df)
 interview_day_df = build_interview_day_summary(slot_df, interview_df)
 media_df = build_media_summary(interview_df)
 coverage_df = build_coverage_summary(interview_df)
@@ -273,6 +277,12 @@ new_machine_df = build_store_new_machine_summary(slot_df)
 new_machine_overlap_df = build_new_machine_interview_overlap(new_machine_df, interview_df)
 special_overlap_df = build_special_overlap_summary(new_machine_overlap_df)
 tier_summary_df = build_tier_summary(new_machine_df)
+
+machine_candidates = machine_candidate_df["機種名"].tolist() if not machine_candidate_df.empty else []
+default_machine = machine_candidates[0] if machine_candidates else None
+selected_machine = st.sidebar.selectbox("機種ウォッチ", [""] + machine_candidates, index=1 if default_machine else 0)
+machine_summary_df = build_machine_watch_summary(slot_df, selected_machine) if selected_machine else pd.DataFrame()
+machine_daily_df = build_machine_watch_daily(slot_df, selected_machine) if selected_machine else pd.DataFrame()
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("比較店舗数", f"{len(selected_halls)}店")
@@ -652,6 +662,45 @@ if plan in {"a", "b"}:
                 use_container_width=True,
                 hide_index=True,
             )
+
+st.markdown("### 機種ウォッチ")
+st.caption("主力機種を1つ選ぶと、店舗横比較と日別推移を見られます。")
+if selected_machine and not machine_summary_df.empty:
+    machine_summary_view = machine_summary_df.copy()
+    machine_summary_view["平均差枚数"] = format_signed_number(machine_summary_view["平均差枚数"])
+    machine_summary_view["平均回転数"] = format_plain_number(machine_summary_view["平均回転数"])
+    machine_summary_view["勝率"] = format_percent(machine_summary_view["勝率"])
+    download_csv_button(machine_summary_view, "機種ウォッチをCSV出力", "machine_watch_summary")
+    st.dataframe(
+        style_signed_columns(machine_summary_view, ["平均差枚数"]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    if not machine_daily_df.empty:
+        machine_daily_chart = machine_daily_df.copy()
+        fig_machine = px.line(
+            machine_daily_chart,
+            x="日付",
+            y="平均差枚数",
+            color="店名",
+            markers=True,
+            title=f"{selected_machine} の日別推移",
+        )
+        st.plotly_chart(fig_machine, use_container_width=True)
+
+        machine_daily_view = machine_daily_df.copy()
+        machine_daily_view["平均差枚数"] = format_signed_number(machine_daily_view["平均差枚数"])
+        machine_daily_view["平均回転数"] = format_plain_number(machine_daily_view["平均回転数"])
+        machine_daily_view["勝率"] = format_percent(machine_daily_view["勝率"])
+        download_csv_button(machine_daily_view, "機種の日別推移をCSV出力", "machine_watch_daily")
+        st.dataframe(
+            style_signed_columns(machine_daily_view, ["平均差枚数"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+else:
+    st.info("比較したい機種をサイドバーの「機種ウォッチ」から選択してください。")
 
 if plan == "b":
     st.markdown("### 特日傾向")
