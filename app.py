@@ -379,6 +379,16 @@ if selected_machine_weekday:
 elif selected_machine_day is not None:
     machine_slot_df = machine_slot_df[machine_slot_df["Day"] == int(selected_machine_day)]
 
+machine_scope_label = "全日"
+if selected_machine_weekday:
+    machine_scope_label = f"{selected_machine_weekday}"
+elif selected_machine_day is not None:
+    machine_scope_label = f"{selected_machine_day}日"
+
+comparison_halls_label = " / ".join(selected_halls[:5])
+if len(selected_halls) > 5:
+    comparison_halls_label += f" / 他{len(selected_halls) - 5}店"
+
 store_summary = build_store_competitor_summary(slot_df)
 score_df = build_competitor_score(store_summary)
 weekday_df = build_weekday_strength_summary(slot_df)
@@ -419,6 +429,12 @@ col1.metric("比較店舗数", f"{len(selected_halls)}店")
 col2.metric("取材レコード数", f"{len(interview_df):,}件")
 col3.metric("分析対象台データ", f"{len(slot_df):,}件")
 col4.metric("期間", f"{start_date} - {end_date}" if isinstance(date_range, tuple) else str(date_range))
+
+st.markdown("### 現在の分析条件")
+condition_col1, condition_col2, condition_col3 = st.columns([1, 2, 1.2])
+condition_col1.info(f"自店基準: {self_store or '未選択'}")
+condition_col2.info(f"比較店舗: {comparison_halls_label}")
+condition_col3.info(f"機種比較条件: {machine_scope_label}")
 
 st.markdown("### 今週の要点")
 st.write(generate_weekly_competitor_comment(score_df))
@@ -836,6 +852,8 @@ if plan in {"a", "b"}:
 
 st.markdown("### 機種ウォッチ")
 st.caption("主力機種を1つ選ぶと、店舗横比較と日別推移を見られます。")
+if self_store:
+    st.info(f"機種比較の基準: {machine_scope_label} の「{self_store}」を自店基準として、選択中の比較店舗と横並びで見ています。")
 if not multi_machine_rank_df.empty:
     st.markdown("#### 主力機種まとめ比較")
     st.caption("複数の主力機種をまとめて比較します。『この機種ならこの店』の見え方を作るための表です。")
@@ -955,14 +973,8 @@ if not multi_machine_rank_df.empty:
                     else:
                         st.info("この条件では、自店が明確に優勢の主力機種は見当たりません。")
 
-    matrix_scope_label = "全日"
-    if selected_machine_weekday:
-        matrix_scope_label = selected_machine_weekday
-    elif selected_machine_day is not None:
-        matrix_scope_label = f"{selected_machine_day}日"
-
     st.markdown("#### 主力機種 × 店舗 比較マトリクス")
-    st.caption(f"{matrix_scope_label} の条件で、機種ごとに各店舗の差枚・回転数・勝率・台データ件数を横並びで比較します。店舗数が多い場合は横にスクロールして確認できます。")
+    st.caption(f"{machine_scope_label} の条件で、機種ごとに各店舗の差枚・回転数・勝率・台データ件数を横並びで比較します。店舗数が多い場合は横にスクロールして確認できます。")
 
     matrix_source = multi_machine_df.copy()
     matrix_source["平均差枚数"] = format_signed_number(matrix_source["平均差枚数"])
