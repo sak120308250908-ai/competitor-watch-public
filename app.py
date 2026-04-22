@@ -522,12 +522,14 @@ if plan in {"a", "b"}:
             .agg(
                 機種数=("機種名", "count"),
                 平均差枚数=("平均差枚数", "mean"),
+                平均回転数=("平均回転数", "mean"),
                 平均勝率=("勝率", "mean"),
             )
             .reset_index()
         )
         overlap_stats["取材重複"] = overlap_stats["取材重複"].map({True: "あり", False: "なし"})
         overlap_stats["平均差枚数"] = format_signed_number(overlap_stats["平均差枚数"])
+        overlap_stats["平均回転数"] = format_plain_number(overlap_stats["平均回転数"])
         overlap_stats["平均勝率"] = overlap_stats["平均勝率"].round(1).astype(str) + "%"
 
         top_overlap_df = (
@@ -545,7 +547,7 @@ if plan in {"a", "b"}:
         with top_col:
             if not top_overlap_df.empty:
                 top_overlap_view = top_overlap_df[
-                    ["導入/初稼働日", "hall_name", "機種名", "台数", "平均差枚数", "勝率", "media_name", "coverage_name"]
+                    ["導入/初稼働日", "hall_name", "機種名", "台数", "平均差枚数", "平均回転数", "勝率", "media_name", "coverage_name"]
                 ].rename(
                     columns={
                         "hall_name": "店名",
@@ -554,6 +556,7 @@ if plan in {"a", "b"}:
                     }
                 )
                 top_overlap_view["平均差枚数"] = format_signed_number(top_overlap_view["平均差枚数"])
+                top_overlap_view["平均回転数"] = format_plain_number(top_overlap_view["平均回転数"])
                 top_overlap_view["勝率"] = top_overlap_view["勝率"].fillna(0).round(1).astype(str) + "%"
                 st.markdown("#### 取材重複の注目新台")
                 download_csv_button(top_overlap_view, "注目新台をCSV出力", "top_new_machine_overlap")
@@ -623,6 +626,7 @@ if plan in {"a", "b"}:
                     "機種名",
                     "台数",
                     "平均差枚数",
+                    "平均回転数",
                     "勝率",
                     "重複パターン",
                     "media_name",
@@ -637,6 +641,7 @@ if plan in {"a", "b"}:
                 }
             )
             combo_view["平均差枚数"] = format_signed_number(combo_view["平均差枚数"])
+            combo_view["平均回転数"] = format_plain_number(combo_view["平均回転数"])
             combo_view["勝率"] = combo_view["勝率"].fillna(0).round(1).astype(str) + "%"
             st.markdown("#### 重なり別の新台一覧")
             download_csv_button(combo_view, "重なり別新台一覧をCSV出力", "special_overlap_details")
@@ -698,12 +703,15 @@ if plan in {"a", "b"}:
                     "events": "件数",
                     "avg_total_diff": "平均総差枚",
                     "avg_diff_per_unit": "平均台差枚",
+                    "avg_games": "平均回転数",
                 }
             ).copy()
             if "平均総差枚" in media_view.columns:
                 media_view["平均総差枚"] = format_signed_number(media_view["平均総差枚"])
             if "平均台差枚" in media_view.columns:
                 media_view["平均台差枚"] = format_signed_number(media_view["平均台差枚"])
+            if "平均回転数" in media_view.columns:
+                media_view["平均回転数"] = format_plain_number(media_view["平均回転数"])
             st.markdown("#### 媒体別サマリー")
             download_csv_button(media_view, "媒体別サマリーをCSV出力", "media_summary")
             st.dataframe(style_signed_columns(media_view, ["平均総差枚", "平均台差枚"]), use_container_width=True, hide_index=True)
@@ -714,10 +722,13 @@ if plan in {"a", "b"}:
                     "coverage_name": "取材名",
                     "events": "件数",
                     "avg_total_diff": "平均総差枚",
+                    "avg_games": "平均回転数",
                 }
             ).copy()
             if "平均総差枚" in coverage_view.columns:
                 coverage_view["平均総差枚"] = format_signed_number(coverage_view["平均総差枚"])
+            if "平均回転数" in coverage_view.columns:
+                coverage_view["平均回転数"] = format_plain_number(coverage_view["平均回転数"])
             st.markdown("#### 取材名別サマリー")
             download_csv_button(coverage_view, "取材名別サマリーをCSV出力", "coverage_summary")
             st.dataframe(style_signed_columns(coverage_view, ["平均総差枚"]), use_container_width=True, hide_index=True)
@@ -792,14 +803,26 @@ if not multi_machine_rank_df.empty:
         hide_index=True,
     )
 
-    pivot_df = multi_machine_df.pivot_table(index="機種名", columns="店名", values="平均差枚数", aggfunc="mean")
-    if not pivot_df.empty:
-        pivot_view = pivot_df.reset_index().copy()
-        for column in pivot_view.columns[1:]:
-            pivot_view[column] = format_signed_number(pivot_view[column])
-        st.markdown("#### 主力機種 × 店舗マトリクス")
+    diff_pivot_df = multi_machine_df.pivot_table(index="機種名", columns="店名", values="平均差枚数", aggfunc="mean")
+    if not diff_pivot_df.empty:
+        diff_pivot_view = diff_pivot_df.reset_index().copy()
+        for column in diff_pivot_view.columns[1:]:
+            diff_pivot_view[column] = format_signed_number(diff_pivot_view[column])
+        st.markdown("#### 主力機種 × 店舗 差枚マトリクス")
         st.dataframe(
-            style_signed_columns(pivot_view, list(pivot_view.columns[1:])),
+            style_signed_columns(diff_pivot_view, list(diff_pivot_view.columns[1:])),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    games_pivot_df = multi_machine_df.pivot_table(index="機種名", columns="店名", values="平均回転数", aggfunc="mean")
+    if not games_pivot_df.empty:
+        games_pivot_view = games_pivot_df.reset_index().copy()
+        for column in games_pivot_view.columns[1:]:
+            games_pivot_view[column] = format_plain_number(games_pivot_view[column])
+        st.markdown("#### 主力機種 × 店舗 平均回転数マトリクス")
+        st.dataframe(
+            games_pivot_view,
             use_container_width=True,
             hide_index=True,
         )

@@ -46,6 +46,9 @@ def build_media_summary(interview_df: pd.DataFrame) -> pd.DataFrame:
     df = interview_df.copy()
     df["total_diff"] = pd.to_numeric(df.get("total_diff"), errors="coerce")
     df["avg_diff_per_unit"] = pd.to_numeric(df.get("avg_diff_per_unit"), errors="coerce")
+    df["avg_games"] = pd.to_numeric(df.get("avg_games"), errors="coerce")
+    if "avg_games" not in df.columns or df["avg_games"].isna().all():
+        df["avg_games"] = pd.to_numeric(df.get("games"), errors="coerce")
 
     return (
         df.groupby("media_name")
@@ -53,6 +56,7 @@ def build_media_summary(interview_df: pd.DataFrame) -> pd.DataFrame:
             events=("media_name", "count"),
             avg_total_diff=("total_diff", "mean"),
             avg_diff_per_unit=("avg_diff_per_unit", "mean"),
+            avg_games=("avg_games", "mean"),
         )
         .reset_index()
         .sort_values("events", ascending=False)
@@ -65,10 +69,13 @@ def build_coverage_summary(interview_df: pd.DataFrame) -> pd.DataFrame:
 
     df = interview_df.copy()
     df["total_diff"] = pd.to_numeric(df.get("total_diff"), errors="coerce")
+    df["avg_games"] = pd.to_numeric(df.get("avg_games"), errors="coerce")
+    if "avg_games" not in df.columns or df["avg_games"].isna().all():
+        df["avg_games"] = pd.to_numeric(df.get("games"), errors="coerce")
 
     return (
         df.groupby("coverage_name")
-        .agg(events=("coverage_name", "count"), avg_total_diff=("total_diff", "mean"))
+        .agg(events=("coverage_name", "count"), avg_total_diff=("total_diff", "mean"), avg_games=("avg_games", "mean"))
         .reset_index()
         .sort_values("events", ascending=False)
     )
