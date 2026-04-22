@@ -4,20 +4,7 @@ import streamlit as st
 import time
 from supabase import create_client
 
-from services.competitor_metrics import (
-    build_area_summary,
-    build_brand_summary,
-    build_machine_candidate_summary,
-    build_machine_watch_daily,
-    build_multi_machine_store_rankings,
-    build_multi_machine_watch_summary,
-    build_machine_watch_summary,
-    build_machine_watch_weekday,
-    build_competitor_score,
-    build_specialday_strength_summary,
-    build_store_competitor_summary,
-    build_weekday_strength_summary,
-)
+from services import competitor_metrics as competitor_metrics_module
 from services.interview_metrics import (
     build_coverage_summary,
     build_coverage_replay_summary,
@@ -39,6 +26,68 @@ from services.reporting import (
     generate_weekly_competitor_comment,
 )
 from services.store_normalizer import get_store_query_names, normalize_store_series
+
+
+build_area_summary = getattr(
+    competitor_metrics_module,
+    "build_area_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_brand_summary = getattr(
+    competitor_metrics_module,
+    "build_brand_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_machine_candidate_summary = getattr(
+    competitor_metrics_module,
+    "build_machine_candidate_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_machine_watch_daily = getattr(
+    competitor_metrics_module,
+    "build_machine_watch_daily",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_multi_machine_store_rankings = getattr(
+    competitor_metrics_module,
+    "build_multi_machine_store_rankings",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_multi_machine_watch_summary = getattr(
+    competitor_metrics_module,
+    "build_multi_machine_watch_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_machine_watch_summary = getattr(
+    competitor_metrics_module,
+    "build_machine_watch_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_machine_watch_weekday = getattr(
+    competitor_metrics_module,
+    "build_machine_watch_weekday",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_competitor_score = getattr(
+    competitor_metrics_module,
+    "build_competitor_score",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_specialday_strength_summary = getattr(
+    competitor_metrics_module,
+    "build_specialday_strength_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_store_competitor_summary = getattr(
+    competitor_metrics_module,
+    "build_store_competitor_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
+build_weekday_strength_summary = getattr(
+    competitor_metrics_module,
+    "build_weekday_strength_summary",
+    lambda *args, **kwargs: pd.DataFrame(),
+)
 
 
 st.set_page_config(page_title="競合店ウォッチ", page_icon="📡", layout="wide")
