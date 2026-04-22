@@ -233,6 +233,46 @@ def build_machine_watch_weekday(store_df: pd.DataFrame, machine_name: str) -> pd
     )
 
 
+def build_multi_machine_watch_summary(store_df: pd.DataFrame, machine_names: list[str]) -> pd.DataFrame:
+    if store_df.empty or not machine_names:
+        return pd.DataFrame()
+
+    machine_keys = {_normalize_machine_name(name) for name in machine_names if name}
+    df = store_df.copy()
+    df["機種名"] = df["機種名"].fillna("不明")
+    df["_machine_key"] = df["機種名"].apply(_normalize_machine_name)
+    df = df[df["_machine_key"].isin(machine_keys)].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df["差枚"] = pd.to_numeric(df["差枚"], errors="coerce").fillna(0)
+    df["G数"] = pd.to_numeric(df["G数"], errors="coerce").fillna(0)
+    df["Win"] = (df["差枚"] > 0).astype(int)
+    hall_col = "hall_name" if "hall_name" in df.columns else "店舗"
+
+    summary = (
+        df.groupby([hall_col, "機種名"])
+        .agg(
+            平均差枚数=("差枚", "mean"),
+            平均回転数=("G数", "mean"),
+            勝率=("Win", "mean"),
+            台データ件数=("差枚", "count"),
+        )
+        .reset_index()
+        .rename(columns={hall_col: "店名"})
+    )
+    return summary.sort_values(["機種名", "平均差枚数"], ascending=[True, False])
+
+
+def build_multi_machine_store_rankings(multi_machine_df: pd.DataFrame) -> pd.DataFrame:
+    if multi_machine_df.empty:
+        return pd.DataFrame()
+
+    rankings = multi_machine_df.copy()
+    rankings["順位"] = rankings.groupby("機種名")["平均差枚数"].rank(method="dense", ascending=False)
+    return rankings.sort_values(["機種名", "順位", "平均差枚数"], ascending=[True, True, False])
+
+
 def build_brand_summary(store_df: pd.DataFrame) -> pd.DataFrame:
     if store_df.empty:
         return pd.DataFrame()

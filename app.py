@@ -9,6 +9,8 @@ from services.competitor_metrics import (
     build_brand_summary,
     build_machine_candidate_summary,
     build_machine_watch_daily,
+    build_multi_machine_store_rankings,
+    build_multi_machine_watch_summary,
     build_machine_watch_summary,
     build_machine_watch_weekday,
     build_competitor_score,
@@ -307,9 +309,13 @@ tier_summary_df = build_tier_summary(new_machine_df)
 machine_candidates = machine_candidate_df["機種名"].tolist() if not machine_candidate_df.empty else []
 default_machine = machine_candidates[0] if machine_candidates else None
 selected_machine = st.sidebar.selectbox("機種ウォッチ", [""] + machine_candidates, index=1 if default_machine else 0)
+default_core_machines = machine_candidates[:5]
+selected_core_machines = st.sidebar.multiselect("主力機種まとめ比較", machine_candidates, default=default_core_machines)
 machine_summary_df = build_machine_watch_summary(slot_df, selected_machine) if selected_machine else pd.DataFrame()
 machine_daily_df = build_machine_watch_daily(slot_df, selected_machine) if selected_machine else pd.DataFrame()
 machine_weekday_df = build_machine_watch_weekday(slot_df, selected_machine) if selected_machine else pd.DataFrame()
+multi_machine_df = build_multi_machine_watch_summary(slot_df, selected_core_machines)
+multi_machine_rank_df = build_multi_machine_store_rankings(multi_machine_df)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("比較店舗数", f"{len(selected_halls)}店")
@@ -722,6 +728,33 @@ if plan in {"a", "b"}:
 
 st.markdown("### 機種ウォッチ")
 st.caption("主力機種を1つ選ぶと、店舗横比較と日別推移を見られます。")
+if not multi_machine_rank_df.empty:
+    st.markdown("#### 主力機種まとめ比較")
+    st.caption("複数の主力機種をまとめて比較します。『この機種ならこの店』の見え方を作るための表です。")
+    multi_machine_view = multi_machine_rank_df.copy()
+    multi_machine_view["平均差枚数"] = format_signed_number(multi_machine_view["平均差枚数"])
+    multi_machine_view["平均回転数"] = format_plain_number(multi_machine_view["平均回転数"])
+    multi_machine_view["勝率"] = format_percent(multi_machine_view["勝率"])
+    multi_machine_view["順位"] = pd.to_numeric(multi_machine_view["順位"], errors="coerce").fillna(0).astype(int)
+    download_csv_button(multi_machine_view, "主力機種まとめ比較をCSV出力", "multi_machine_watch")
+    st.dataframe(
+        style_signed_columns(multi_machine_view, ["平均差枚数"]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    pivot_df = multi_machine_df.pivot_table(index="機種名", columns="店名", values="平均差枚数", aggfunc="mean")
+    if not pivot_df.empty:
+        pivot_view = pivot_df.reset_index().copy()
+        for column in pivot_view.columns[1:]:
+            pivot_view[column] = format_signed_number(pivot_view[column])
+        st.markdown("#### 主力機種 × 店舗マトリクス")
+        st.dataframe(
+            style_signed_columns(pivot_view, list(pivot_view.columns[1:])),
+            use_container_width=True,
+            hide_index=True,
+        )
+
 if selected_machine and not machine_summary_df.empty:
     machine_summary_view = machine_summary_df.copy()
     machine_summary_view["平均差枚数"] = format_signed_number(machine_summary_view["平均差枚数"])
