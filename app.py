@@ -11,7 +11,9 @@ from services.competitor_metrics import (
 )
 from services.interview_metrics import (
     build_coverage_summary,
+    build_coverage_replay_summary,
     build_interview_day_summary,
+    build_media_reliability_summary,
     build_media_summary,
     build_new_machine_interview_overlap,
 )
@@ -19,6 +21,7 @@ from services.interview_repository import fetch_interview_events
 from services.new_machine_competitor import build_store_new_machine_summary, build_tier_summary
 from services.reporting import (
     generate_interview_comment,
+    generate_metric_guide,
     generate_new_machine_comment,
     generate_new_machine_overlap_comment,
     generate_weekly_competitor_comment,
@@ -186,6 +189,8 @@ specialday_df = build_specialday_strength_summary(slot_df)
 interview_day_df = build_interview_day_summary(slot_df, interview_df)
 media_df = build_media_summary(interview_df)
 coverage_df = build_coverage_summary(interview_df)
+media_reliability_df = build_media_reliability_summary(interview_day_df)
+coverage_replay_df = build_coverage_replay_summary(interview_day_df)
 new_machine_df = build_store_new_machine_summary(slot_df)
 new_machine_overlap_df = build_new_machine_interview_overlap(new_machine_df, interview_df)
 tier_summary_df = build_tier_summary(new_machine_df)
@@ -199,6 +204,10 @@ col4.metric("期間", f"{start_date} - {end_date}" if isinstance(date_range, tup
 st.markdown("### 今週の要点")
 st.write(generate_weekly_competitor_comment(score_df))
 st.write(generate_interview_comment(interview_df))
+
+with st.expander("指標の見方"):
+    for title, description in generate_metric_guide():
+        st.markdown(f"- **{title}**: {description}")
 
 st.markdown("### 店舗比較")
 display_score_df = score_df.rename(
@@ -427,6 +436,57 @@ if plan in {"a", "b"}:
                 coverage_view["平均総差枚"] = format_signed_number(coverage_view["平均総差枚"])
             st.markdown("#### 取材名別サマリー")
             st.dataframe(style_signed_columns(coverage_view, ["平均総差枚"]), use_container_width=True, hide_index=True)
+
+    st.markdown("### 取材の強さを見る指標")
+    guide_col1, guide_col2 = st.columns(2)
+    with guide_col1:
+        st.markdown("#### 媒体信頼度")
+        st.caption("平均差枚・勝率・回転数を合成した媒体ごとの目安です。高いほど結果が伴いやすい媒体です。")
+        if not media_reliability_df.empty:
+            media_reliability_view = media_reliability_df.rename(
+                columns={
+                    "media_name": "媒体",
+                    "events": "件数",
+                    "avg_diff": "平均差枚数",
+                    "avg_games": "平均回転数",
+                    "avg_win_rate": "平均勝率",
+                    "positive_rate": "プラス率",
+                    "reliability_score": "媒体信頼度",
+                }
+            ).copy()
+            media_reliability_view["平均差枚数"] = format_signed_number(media_reliability_view["平均差枚数"])
+            media_reliability_view["平均回転数"] = format_plain_number(media_reliability_view["平均回転数"])
+            media_reliability_view["平均勝率"] = format_percent(media_reliability_view["平均勝率"])
+            media_reliability_view["プラス率"] = format_percent(media_reliability_view["プラス率"])
+            media_reliability_view["媒体信頼度"] = pd.to_numeric(media_reliability_view["媒体信頼度"], errors="coerce").round(1)
+            st.dataframe(
+                style_signed_columns(media_reliability_view, ["平均差枚数"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+    with guide_col2:
+        st.markdown("#### 取材名別再現率")
+        st.caption("その取材名が入った日にプラス結果になった割合です。高いほど再現しやすい企画です。")
+        if not coverage_replay_df.empty:
+            coverage_replay_view = coverage_replay_df.rename(
+                columns={
+                    "coverage_name": "取材名",
+                    "events": "件数",
+                    "avg_diff": "平均差枚数",
+                    "avg_games": "平均回転数",
+                    "avg_win_rate": "平均勝率",
+                    "positive_rate": "再現率",
+                }
+            ).copy()
+            coverage_replay_view["平均差枚数"] = format_signed_number(coverage_replay_view["平均差枚数"])
+            coverage_replay_view["平均回転数"] = format_plain_number(coverage_replay_view["平均回転数"])
+            coverage_replay_view["平均勝率"] = format_percent(coverage_replay_view["平均勝率"])
+            coverage_replay_view["再現率"] = format_percent(coverage_replay_view["再現率"])
+            st.dataframe(
+                style_signed_columns(coverage_replay_view, ["平均差枚数"]),
+                use_container_width=True,
+                hide_index=True,
+            )
 
 if plan == "b":
     st.markdown("### 特日傾向")

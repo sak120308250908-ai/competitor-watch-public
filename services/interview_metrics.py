@@ -68,6 +68,64 @@ def build_coverage_summary(interview_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def build_media_reliability_summary(interview_day_df: pd.DataFrame) -> pd.DataFrame:
+    if interview_day_df.empty or "media_name" not in interview_day_df.columns:
+        return pd.DataFrame()
+
+    df = interview_day_df.copy()
+    df = df[df["media_name"].notna()].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df["avg_diff"] = pd.to_numeric(df.get("avg_diff"), errors="coerce").fillna(0)
+    df["avg_games"] = pd.to_numeric(df.get("avg_games"), errors="coerce").fillna(0)
+    df["win_rate"] = pd.to_numeric(df.get("win_rate"), errors="coerce").fillna(0)
+    df["is_positive_day"] = (df["avg_diff"] > 0).astype(int)
+    df["reliability_score"] = (df["avg_diff"] / 100.0) + (df["win_rate"] * 100.0) + (df["avg_games"] / 1000.0)
+
+    return (
+        df.groupby("media_name")
+        .agg(
+            events=("media_name", "count"),
+            avg_diff=("avg_diff", "mean"),
+            avg_games=("avg_games", "mean"),
+            avg_win_rate=("win_rate", "mean"),
+            positive_rate=("is_positive_day", "mean"),
+            reliability_score=("reliability_score", "mean"),
+        )
+        .reset_index()
+        .sort_values(["reliability_score", "events"], ascending=[False, False])
+    )
+
+
+def build_coverage_replay_summary(interview_day_df: pd.DataFrame) -> pd.DataFrame:
+    if interview_day_df.empty or "coverage_name" not in interview_day_df.columns:
+        return pd.DataFrame()
+
+    df = interview_day_df.copy()
+    df = df[df["coverage_name"].notna()].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df["avg_diff"] = pd.to_numeric(df.get("avg_diff"), errors="coerce").fillna(0)
+    df["avg_games"] = pd.to_numeric(df.get("avg_games"), errors="coerce").fillna(0)
+    df["win_rate"] = pd.to_numeric(df.get("win_rate"), errors="coerce").fillna(0)
+    df["is_positive_day"] = (df["avg_diff"] > 0).astype(int)
+
+    return (
+        df.groupby("coverage_name")
+        .agg(
+            events=("coverage_name", "count"),
+            avg_diff=("avg_diff", "mean"),
+            avg_games=("avg_games", "mean"),
+            avg_win_rate=("win_rate", "mean"),
+            positive_rate=("is_positive_day", "mean"),
+        )
+        .reset_index()
+        .sort_values(["positive_rate", "avg_diff", "events"], ascending=[False, False, False])
+    )
+
+
 def build_new_machine_interview_overlap(new_machine_df: pd.DataFrame, interview_df: pd.DataFrame) -> pd.DataFrame:
     if new_machine_df.empty or interview_df.empty:
         return pd.DataFrame()
