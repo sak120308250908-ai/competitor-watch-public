@@ -260,6 +260,56 @@ def flatten_multiindex_columns(df: pd.DataFrame) -> pd.DataFrame:
     return flattened
 
 
+def format_date_with_weekday(value: pd.Timestamp) -> str:
+    weekday = WEEKDAY_MAP.get(value.day_name(), value.day_name())
+    return f"{value.month}/{value.day}({weekday[0]})"
+
+
+def build_daily_trend_summary(slot_df: pd.DataFrame, interview_df: pd.DataFrame) -> pd.DataFrame:
+    if slot_df.empty:
+        return pd.DataFrame()
+
+    base = slot_df.copy()
+    base["Win"] = (base["差枚"] > 0).astype(int)
+    daily = (
+        base.groupby(["hall_name", "日付"])
+        .agg(
+            avg_games=("G数", "mean"),
+            avg_diff=("差枚", "mean"),
+            win_rate=("Win", "mean"),
+            records=("差枚", "count"),
+        )
+        .reset_index()
+    )
+    daily["date_label"] = daily["日付"].apply(format_date_with_weekday)
+
+    if interview_df.empty:
+        daily["取材件数"] = 0
+        daily["特日件数"] = 0
+        daily["取材内容"] = ""
+        return daily
+
+    event_df = interview_df.copy()
+    event_df["event_date"] = pd.to_datetime(event_df["event_date"])
+    event_df["coverage_name"] = event_df["coverage_name"].fillna("")
+    event_df["is_special_day"] = event_df["is_special_day"].fillna(False).astype(bool) if "is_special_day" in event_df.columns else False
+    event_summary = (
+        event_df.groupby(["hall_name", "event_date"])
+        .agg(
+            取材件数=("coverage_name", "count"),
+            特日件数=("is_special_day", "sum"),
+            取材内容=("coverage_name", lambda x: " / ".join(sorted({name for name in x if name})[:3])),
+        )
+        .reset_index()
+        .rename(columns={"event_date": "日付"})
+    )
+    merged = daily.merge(event_summary, on=["hall_name", "日付"], how="left")
+    merged["取材件数"] = pd.to_numeric(merged["取材件数"], errors="coerce").fillna(0).astype(int)
+    merged["特日件数"] = pd.to_numeric(merged["特日件数"], errors="coerce").fillna(0).astype(int)
+    merged["取材内容"] = merged["取材内容"].fillna("")
+    return merged
+
+
 def signed_text_color(value) -> str:
     text = str(value).strip()
     if text.startswith("+"):
@@ -474,6 +524,7 @@ new_machine_df = build_store_new_machine_summary(slot_df)
 new_machine_overlap_df = build_new_machine_interview_overlap(new_machine_df, interview_df)
 special_overlap_df = build_special_overlap_summary(new_machine_overlap_df)
 tier_summary_df = build_tier_summary(new_machine_df)
+daily_trend_df = build_daily_trend_summary(slot_df, interview_df)
 
 machine_candidates = machine_candidate_df["機種名"].tolist() if not machine_candidate_df.empty else []
 default_machine = machine_candidates[0] if machine_candidates else None
@@ -522,6 +573,50 @@ condition_col1, condition_col2, condition_col3 = st.columns([1, 2, 1.2])
 condition_col1.info(f"自店基準: {self_store or '未選択'}")
 condition_col2.info(f"比較店舗: {comparison_halls_label}")
 condition_col3.info(f"機種比較条件: {machine_scope_label}")
+
+st.markdown("### 営業示唆ビュー")
+trend_metric = st.radio(
+    "月間推移グラフの比較指標",
+    ["平均回転数", "平均差枚数"],
+    horizontal=True,
+)
+if not daily_trend_df.empty:
+    trend_value_col = "avg_games" if trend_metric == "平均回転数" else "avg_diff"
+    trend_title = f"自店 vs 競合店の月間推移 ({trend_metric} / {analysis_scope_label})"
+    trend_chart_df = daily_trend_df.copy()
+    trend_chart_df["series_name"] = trend_chart_df["hall_name"].apply(
+        lambda hall: f"{hall}（自店）" if hall == self_store else hall
+    )
+    date_order = (
+        trend_chart_df.sort_values("日付")["date_label"]
+        .drop_duplicates()
+        .tolist()
+    )
+    fig_trend = px.line(
+        trend_chart_df,
+        x="date_label",
+        y=trend_value_col,
+        color="series_name",
+        markers=True,
+        title=trend_title,
+        category_orders={"date_label": date_order},
+        custom_data=["hall_name", "date_label", "avg_games", "avg_diff", "win_rate", "取材件数", "特日件数", "取材内容"],
+    )
+    fig_trend.update_traces(
+        hovertemplate=(
+            "店舗: %{customdata[0]}<br>"
+            "日付: %{customdata[1]}<br>"
+            "平均回転数: %{customdata[2]:,.0f}<br>"
+            "平均差枚数: %{customdata[3]:+.0f}<br>"
+            "勝率: %{customdata[4]:.1%}<br>"
+            "取材件数: %{customdata[5]}<br>"
+            "特日件数: %{customdata[6]}<br>"
+            "取材内容: %{customdata[7]}<extra></extra>"
+        )
+    )
+    fig_trend.update_layout(hovermode="x unified", legend_title_text="")
+    st.plotly_chart(fig_trend, use_container_width=True)
+    st.caption("横軸は 3/1(日) のように日付と曜日を表示しています。まずは自店と競合店の稼働や差枚の流れを月単位でつかむためのグラフです。")
 
 st.markdown("### 今週の要点")
 st.write(generate_weekly_competitor_comment(score_df))
