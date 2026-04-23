@@ -614,7 +614,18 @@ if not daily_trend_df.empty:
             "取材内容: %{customdata[7]}<extra></extra>"
         )
     )
-    fig_trend.update_layout(hovermode="x unified", legend_title_text="")
+    fig_trend.update_layout(
+        hovermode="x unified",
+        legend_title_text="",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+        ),
+        margin=dict(t=90),
+    )
     st.plotly_chart(fig_trend, use_container_width=True)
     st.caption("横軸は 3/1(日) のように日付と曜日を表示しています。まずは自店と競合店の稼働や差枚の流れを月単位でつかむためのグラフです。")
 
