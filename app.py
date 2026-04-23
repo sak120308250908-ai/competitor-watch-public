@@ -607,7 +607,7 @@ if not daily_trend_df.empty:
             "店舗: %{customdata[0]}<br>"
             "日付: %{customdata[1]}<br>"
             "平均回転数: %{customdata[2]:,.0f}<br>"
-            "平均差枚数: %{customdata[3]:+.0f}<br>"
+            "平均差枚数: %{customdata[3]:+,.0f}<br>"
             "勝率: %{customdata[4]:.1%}<br>"
             "取材件数: %{customdata[5]}<br>"
             "特日件数: %{customdata[6]}<br>"
