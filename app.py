@@ -1,4 +1,5 @@
 import html
+import unicodedata
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -260,6 +261,10 @@ def flatten_multiindex_columns(df: pd.DataFrame) -> pd.DataFrame:
     return flattened
 
 
+def normalize_label_text(value) -> str:
+    return unicodedata.normalize("NFKC", str(value)).strip()
+
+
 def format_date_with_weekday(value: pd.Timestamp) -> str:
     weekday = WEEKDAY_MAP.get(value.day_name(), value.day_name())
     return f"{value.month}/{value.day}({weekday[0]})"
@@ -291,14 +296,14 @@ def build_daily_trend_summary(slot_df: pd.DataFrame, interview_df: pd.DataFrame)
 
     event_df = interview_df.copy()
     event_df["event_date"] = pd.to_datetime(event_df["event_date"])
-    event_df["coverage_name"] = event_df["coverage_name"].fillna("")
+    event_df["coverage_name"] = event_df["coverage_name"].fillna("").map(normalize_label_text)
     event_df["is_special_day"] = event_df["is_special_day"].fillna(False).astype(bool) if "is_special_day" in event_df.columns else False
     event_summary = (
         event_df.groupby(["hall_name", "event_date"])
         .agg(
             取材件数=("coverage_name", "count"),
             特日件数=("is_special_day", "sum"),
-            取材内容=("coverage_name", lambda x: " / ".join(sorted({name for name in x if name})[:3])),
+            取材内容=("coverage_name", lambda x: " / ".join(sorted({name for name in x if name}))),
         )
         .reset_index()
         .rename(columns={"event_date": "日付"})
