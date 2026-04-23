@@ -589,6 +589,8 @@ if not daily_trend_df.empty:
     trend_value_col = "avg_games" if trend_metric == "平均回転数" else "avg_diff"
     trend_title = f"自店 vs 競合店の月間推移 ({trend_metric} / {analysis_scope_label})"
     trend_chart_df = daily_trend_df.copy()
+    trend_chart_df["avg_games"] = pd.to_numeric(trend_chart_df["avg_games"], errors="coerce").round(0)
+    trend_chart_df["avg_diff"] = pd.to_numeric(trend_chart_df["avg_diff"], errors="coerce").round(0)
     trend_chart_df["series_name"] = trend_chart_df["hall_name"].apply(
         lambda hall: f"{hall}（自店）" if hall == self_store else hall
     )
@@ -631,6 +633,7 @@ if not daily_trend_df.empty:
         ),
         margin=dict(t=90),
     )
+    fig_trend.update_yaxes(tickformat=",.0f")
     st.plotly_chart(fig_trend, use_container_width=True)
     st.caption("横軸は 3/1(日) のように日付と曜日を表示しています。まずは自店と競合店の稼働や差枚の流れを月単位でつかむためのグラフです。")
 
