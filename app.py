@@ -629,6 +629,53 @@ if not daily_trend_df.empty:
     st.plotly_chart(fig_trend, use_container_width=True)
     st.caption("横軸は 3/1(日) のように日付と曜日を表示しています。まずは自店と競合店の稼働や差枚の流れを月単位でつかむためのグラフです。")
 
+    with st.expander("取材マッチ確認"):
+        st.caption("取材内容が空欄になる店舗について、日別のマッチ件数と店名のひも付きを確認できます。")
+        debug_hall = st.selectbox(
+            "確認する店舗",
+            selected_halls,
+            index=selected_halls.index(self_store) if self_store in selected_halls else 0,
+            key="trend_debug_hall",
+        )
+
+        debug_daily_df = daily_trend_df[daily_trend_df["hall_name"] == debug_hall].copy()
+        if not debug_daily_df.empty:
+            debug_view = debug_daily_df[
+                ["date_label", "avg_games", "avg_diff", "win_rate", "取材件数", "特日件数", "取材内容"]
+            ].rename(
+                columns={
+                    "date_label": "日付",
+                    "avg_games": "平均回転数",
+                    "avg_diff": "平均差枚数",
+                    "win_rate": "勝率",
+                }
+            )
+            debug_view["平均回転数"] = format_plain_number(debug_view["平均回転数"])
+            debug_view["平均差枚数"] = format_signed_number(debug_view["平均差枚数"])
+            debug_view["勝率"] = format_percent(debug_view["勝率"])
+            st.dataframe(
+                style_signed_columns(debug_view, ["平均差枚数"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("この店舗の日別データはありません。")
+
+        slot_aliases = sorted(slot_df.loc[slot_df["hall_name"] == debug_hall, "店舗"].dropna().astype(str).unique().tolist())
+        interview_aliases = []
+        if "raw_hall_name" in interview_df.columns:
+            interview_aliases = sorted(
+                interview_df.loc[interview_df["hall_name"] == debug_hall, "raw_hall_name"].dropna().astype(str).unique().tolist()
+            )
+
+        alias_col1, alias_col2 = st.columns(2)
+        with alias_col1:
+            st.markdown("#### slot_data 側の店名")
+            st.write(" / ".join(slot_aliases) if slot_aliases else "該当なし")
+        with alias_col2:
+            st.markdown("#### schedule 側の店名")
+            st.write(" / ".join(interview_aliases) if interview_aliases else "該当なし")
+
 st.markdown("### 今週の要点")
 st.write(generate_weekly_competitor_comment(score_df))
 st.write(generate_interview_comment(interview_df))
